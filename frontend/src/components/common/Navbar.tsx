@@ -59,9 +59,8 @@ export const Navbar: React.FC<NavbarProps> = ({ backendOnline }) => {
                 <span className="text-slate-200 font-medium truncate max-w-[120px] sm:max-w-[160px]">
                   {user.full_name}
                 </span>
-                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                  isAdmin ? 'bg-cyan-900/40 text-cyan-300' : 'bg-blue-900/40 text-blue-300'
-                }`}>
+                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isAdmin ? 'bg-cyan-900/40 text-cyan-300' : 'bg-blue-900/40 text-blue-300'
+                  }`}>
                   {user.role}
                 </span>
               </div>

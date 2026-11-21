@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Shield,
   Activity,
@@ -22,6 +23,7 @@ import { SystemHealth } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 export const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin, openAuthModal, demoLogin } = useAuth();
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
@@ -109,12 +111,15 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
             <button
               onClick={() => {
-                setActivePortalTab('citizen');
-                if (!isAuthenticated) openAuthModal('login');
+                if (isAuthenticated) {
+                  navigate('/report');
+                } else {
+                  openAuthModal('login');
+                }
               }}
               className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 group"
             >
-              <span>{isAuthenticated ? 'Open Citizen Portal' : 'Report Issue (Citizen Portal)'}</span>
+              <span>{isAuthenticated ? 'Report Issue Now' : 'Report Issue (Citizen Portal)'}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
@@ -129,14 +134,13 @@ export const LandingPage: React.FC = () => {
               <Shield className="w-4 h-4 text-cyan-400" />
               <span>{isAdmin ? 'Admin Console (Active)' : 'Admin Triage Dashboard'}</span>
             </button>
-            <a
-              href="#portals"
-              onClick={() => setActivePortalTab('transparency')}
+            <Link
+              to="/track"
               className="px-6 py-3.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 font-medium text-sm border border-slate-800 transition-all flex items-center gap-2"
             >
               <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <span>Public Transparency Map</span>
-            </a>
+              <span>Track Grievance Status</span>
+            </Link>
           </div>
 
           {/* Authenticated Persona Banner if logged in */}
@@ -299,6 +303,22 @@ export const LandingPage: React.FC = () => {
                       <strong className="text-white">Full Transparency Tracking:</strong> Step-by-step status: Submitted &rarr; Under Review &rarr; Assigned &rarr; In Progress &rarr; Resolved.
                     </p>
                   </div>
+                </div>
+
+                <div className="pt-4 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/report"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/25 transition-all"
+                  >
+                    <span>Launch Reporting Wizard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <Link
+                    to="/track"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-all"
+                  >
+                    <span>Track Grievance</span>
+                  </Link>
                 </div>
               </div>
 

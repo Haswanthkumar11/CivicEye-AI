@@ -4,8 +4,8 @@
 **Tagline:** Report it. Understand it. Resolve it. Track it.  
 **Track:** Track 1 – Civic Pulse, Digital Governance & Public Information  
 **Problem Statement:** Transparent Civic Grievance & Infrastructure Triage System  
-**Version:** 1.1.0  
-**Status:** In Progress (Phase 2 Completed, Phase 3 Next)  
+**Version:** 1.2.0  
+**Status:** In Progress (Phase 3 Completed, Phase 4 Next)  
 
 ---
 
@@ -85,12 +85,12 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Seed default municipal departments and demo administrative credentials.
 - [x] Connect frontend React AuthContext, AuthModal, and 1-Click Evaluation switcher to backend APIs.
 
-### Phase 3: Citizen Complaint Management
-- [ ] Build citizen complaint submission wizard with step-by-step progress.
-- [ ] Implement photo, video, and audio recording upload interface.
-- [ ] Implement interactive Leaflet location picker (GPS auto-detection + pin adjustment).
-- [ ] Provide real-time pre-submission AI review card for the citizen.
-- [ ] Implement citizen dashboard with live complaint tracking and status history.
+### Phase 3: Citizen Complaint Management (Completed)
+- [x] Build citizen complaint submission wizard with step-by-step progress.
+- [x] Implement photo, video, and audio recording upload interface.
+- [x] Implement interactive Leaflet location picker (GPS auto-detection + pin adjustment).
+- [x] Provide real-time pre-submission AI review card for the citizen.
+- [x] Implement citizen dashboard with live complaint tracking and status history.
 
 ### Phase 4: Multimodal AI Intelligence Pipeline
 - [ ] Implement Gemini service for multilingual understanding, Telugu/English triage, and structured extraction.

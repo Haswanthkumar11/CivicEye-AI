@@ -5,6 +5,10 @@ import { AuthModal } from './components/auth/AuthModal';
 import { Navbar } from './components/common/Navbar';
 import { Footer } from './components/common/Footer';
 import { LandingPage } from './pages/LandingPage';
+import { ReportComplaintPage } from './pages/ReportComplaintPage';
+import { CitizenDashboard } from './pages/CitizenDashboard';
+import { ComplaintDetailPage } from './pages/ComplaintDetailPage';
+import { TrackComplaintPage } from './pages/TrackComplaintPage';
 import { checkSystemHealth } from './api/client';
 
 export const App: React.FC = () => {
@@ -32,6 +36,11 @@ export const App: React.FC = () => {
           <main className="flex-grow">
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/report" element={<ReportComplaintPage />} />
+              <Route path="/dashboard" element={<CitizenDashboard />} />
+              <Route path="/complaints/:id" element={<ComplaintDetailPage />} />
+              <Route path="/track" element={<TrackComplaintPage />} />
+              <Route path="/track/:trackingId" element={<TrackComplaintPage />} />
             </Routes>
           </main>
           <Footer />

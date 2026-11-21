@@ -1,5 +1,6 @@
 import React from 'react';
-import { Eye, ExternalLink, User as UserIcon, LogOut, Shield, Sparkles } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Eye, ExternalLink, User as UserIcon, LogOut, Shield, Sparkles, Plus, Search, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface NavbarProps {
@@ -8,13 +9,16 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ backendOnline }) => {
   const { user, isAuthenticated, isAdmin, logout, openAuthModal } = useAuth();
+  const location = useLocation();
+
+  const isHome = location.pathname === '/';
 
   return (
     <header className="sticky top-0 z-40 bg-[#0a0f1d]/90 backdrop-blur-md border-b border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
             <Eye className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -28,15 +32,48 @@ export const Navbar: React.FC<NavbarProps> = ({ backendOnline }) => {
               Transparent Civic Grievance & Infrastructure Triage System
             </p>
           </div>
-        </div>
+        </Link>
 
         {/* Center Nav links */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-          <a href="#portals" className="hover:text-blue-400 transition-colors">Portals</a>
-          <a href="#pipeline" className="hover:text-blue-400 transition-colors">AI Pipeline</a>
-          <a href="#severity-engine" className="hover:text-blue-400 transition-colors">Priority Engine</a>
-          <a href="#architecture" className="hover:text-blue-400 transition-colors">Architecture</a>
-          <a href="#diagnostics" className="hover:text-blue-400 transition-colors">Diagnostics</a>
+        <nav className="hidden md:flex items-center gap-5 text-xs font-semibold text-slate-300">
+          <Link
+            to="/report"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+              location.pathname === '/report' ? 'bg-blue-600 text-white' : 'hover:text-blue-400'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Report Issue</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+              location.pathname === '/dashboard' ? 'bg-blue-600 text-white' : 'hover:text-blue-400'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>My Grievances</span>
+          </Link>
+
+          <Link
+            to="/track"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+              location.pathname.startsWith('/track') ? 'bg-blue-600 text-white' : 'hover:text-blue-400'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Track Status</span>
+          </Link>
+
+          {isHome ? (
+            <>
+              <a href="#pipeline" className="hover:text-blue-400 transition-colors">AI Pipeline</a>
+              <a href="#severity-engine" className="hover:text-blue-400 transition-colors">Priority Engine</a>
+            </>
+          ) : (
+            <Link to="/" className="hover:text-blue-400 transition-colors">Overview</Link>
+          )}
         </nav>
 
         {/* Right Auth / Status Indicator */}
@@ -56,11 +93,12 @@ export const Navbar: React.FC<NavbarProps> = ({ backendOnline }) => {
                 <span className={`p-1 rounded-md ${isAdmin ? 'bg-cyan-500/20 text-cyan-400' : 'bg-blue-500/20 text-blue-400'}`}>
                   {isAdmin ? <Shield className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
                 </span>
-                <span className="text-slate-200 font-medium truncate max-w-[120px] sm:max-w-[160px]">
+                <span className="text-slate-200 font-medium truncate max-w-[120px] sm:max-w-[150px]">
                   {user.full_name}
                 </span>
-                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isAdmin ? 'bg-cyan-900/40 text-cyan-300' : 'bg-blue-900/40 text-blue-300'
-                  }`}>
+                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                  isAdmin ? 'bg-cyan-900/40 text-cyan-300' : 'bg-blue-900/40 text-blue-300'
+                }`}>
                   {user.role}
                 </span>
               </div>

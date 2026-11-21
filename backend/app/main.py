@@ -1,6 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.api_v1 import api_router
@@ -45,6 +46,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure upload directory exists before static mounting
+os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.MEDIA_UPLOAD_DIR), name="uploads")
+
 # Root endpoint
 @app.get("/", tags=["Root"])
 async def root():
@@ -65,6 +70,8 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Aliases for direct /api/... paths
 from app.api.endpoints.health import health_check
 from app.api.endpoints.auth import router as auth_router
+from app.api.endpoints.complaints import router as complaints_router
 
 app.add_api_route("/api/health", health_check, methods=["GET"], tags=["Health & Diagnostics"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication & User Management"])
+app.include_router(complaints_router, prefix="/api/complaints", tags=["Complaints & Grievances"])

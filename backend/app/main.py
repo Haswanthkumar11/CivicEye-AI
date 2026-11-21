@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.api_v1 import api_router
+from app.db.init_db import init_db
 
 
 @asynccontextmanager
@@ -12,6 +13,14 @@ async def lifespan(app: FastAPI):
     # Ensure media directory exists
     os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
     os.makedirs("models/weights", exist_ok=True)
+    
+    # Initialize and seed database tables
+    try:
+        init_db()
+        print("📦 Database models and seed data verified.")
+    except Exception as e:
+        print(f"⚠️ Warning during DB startup init: {e}")
+        
     print(f"🚀 {settings.PROJECT_NAME} v{settings.VERSION} initialized in {settings.ENVIRONMENT} mode.")
     yield
     print(f"🛑 {settings.PROJECT_NAME} backend shutting down.")
@@ -53,6 +62,9 @@ async def root():
 # Include V1 Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Direct /api/health alias for convenience
+# Aliases for direct /api/... paths
 from app.api.endpoints.health import health_check
+from app.api.endpoints.auth import router as auth_router
+
 app.add_api_route("/api/health", health_check, methods=["GET"], tags=["Health & Diagnostics"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication & User Management"])

@@ -4,8 +4,8 @@
 **Tagline:** Report it. Understand it. Resolve it. Track it.  
 **Track:** Track 1 – Civic Pulse, Digital Governance & Public Information  
 **Problem Statement:** Transparent Civic Grievance & Infrastructure Triage System  
-**Version:** 1.0.0  
-**Status:** In Progress (Phase 1 Initialized)  
+**Version:** 1.1.0  
+**Status:** In Progress (Phase 2 Completed, Phase 3 Next)  
 
 ---
 
@@ -78,11 +78,12 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Verify frontend-to-backend communication.
 - [x] Document project plan (`PROJECT_PLAN.md`) and development log (`DEVELOPMENT_LOG.md`).
 
-### Phase 2: Database Schema & Authentication
-- [ ] Define SQLAlchemy database models: `users`, `complaints`, `complaint_media`, `departments`, `ai_analysis_results`, `duplicate_groups`, `duplicate_relations`, `status_history`.
-- [ ] Configure PostGIS spatial extension for coordinates and geospatial queries.
-- [ ] Implement JWT authentication with role-based access control (Citizen vs Admin).
-- [ ] Seed default municipal departments and demo administrative credentials.
+### Phase 2: Database Schema & Authentication (Completed)
+- [x] Define SQLAlchemy database models: `users`, `complaints`, `complaint_media`, `departments`, `ai_analysis_results`, `duplicate_groups`, `duplicate_relations`, `status_history`.
+- [x] Configure PostGIS spatial coordinates and geospatial schemas with SQLite/Postgres dual-engine resilience.
+- [x] Implement JWT authentication with role-based access control (Citizen vs Admin).
+- [x] Seed default municipal departments and demo administrative credentials.
+- [x] Connect frontend React AuthContext, AuthModal, and 1-Click Evaluation switcher to backend APIs.
 
 ### Phase 3: Citizen Complaint Management
 - [ ] Build citizen complaint submission wizard with step-by-step progress.

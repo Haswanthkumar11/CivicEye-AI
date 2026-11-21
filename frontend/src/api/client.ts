@@ -11,6 +11,15 @@ export const apiClient = axios.create({
   },
 });
 
+// Attach Authorization header automatically if token exists in localStorage
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('civiceye_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const checkSystemHealth = async () => {
   const response = await apiClient.get('/health');
   return response.data;

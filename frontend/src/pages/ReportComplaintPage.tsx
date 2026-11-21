@@ -17,6 +17,12 @@ import {
   ExternalLink,
   Shield,
   Sliders,
+  Layers,
+  Camera,
+  MessageSquare,
+  MapPin,
+  Eye,
+  Check,
 } from 'lucide-react';
 
 const CATEGORIES: { label: ComplaintCategory; dept: string; subcategories: string[] }[] = [
@@ -60,31 +66,37 @@ const CATEGORIES: { label: ComplaintCategory; dept: string; subcategories: strin
 export const ReportComplaintPage: React.FC = () => {
   const { isAuthenticated, openAuthModal, demoLogin } = useAuth();
 
-  // Wizard Step State (1: Media, 2: Details, 3: Location, 4: Review, 5: Success)
+  // Wizard Step State:
+  // Step 1: Select complaint category
+  // Step 2: Upload photographs, videos or voice recordings
+  // Step 3: Enter written description or record voice complaint
+  // Step 4: Select geographical location using map
+  // Step 5: Display complaint review screen
+  // Step 6: Submit and generate tracking ID
   const [currentStep, setCurrentStep] = useState<number>(1);
 
-  // Form State
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  // Form State (preserved across steps)
   const [category, setCategory] = useState<ComplaintCategory>('Road Infrastructure');
   const [subcategory, setSubcategory] = useState('Pothole / Road Cavity');
   const [mediaList, setMediaList] = useState<ComplaintMediaItem[]>([]);
   const [audioItem, setAudioItem] = useState<ComplaintMediaItem | undefined>(undefined);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [location, setLocation] = useState<ComplaintLocation>({
     latitude: 17.3850,
     longitude: 78.4867,
     address: 'Hyderabad Civic Region',
   });
 
-  // Severity state (calculated deterministically)
+  // Severity state (calculated deterministically: 0.30*Damage + 0.30*Risk + 0.20*Impact + 0.20*Sensitivity)
   const [damageScore, setDamageScore] = useState<number>(70);
   const [riskScore, setRiskScore] = useState<number>(75);
   const [publicImpact, setPublicImpact] = useState<number>(65);
   const [locationSensitivity, setLocationSensitivity] = useState<number>(60);
 
-  // Status
+  // Submission Status
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
   const [submittedTrackingId, setSubmittedTrackingId] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
 
@@ -104,8 +116,15 @@ export const ReportComplaintPage: React.FC = () => {
   };
 
   const currentPriority = getPriorityLevel(computedSeverityScore);
-
   const selectedCategoryObj = CATEGORIES.find((c) => c.label === category) || CATEGORIES[0];
+
+  const handleCategoryChange = (cat: ComplaintCategory) => {
+    setCategory(cat);
+    const catObj = CATEGORIES.find((c) => c.label === cat);
+    if (catObj && catObj.subcategories.length > 0) {
+      setSubcategory(catObj.subcategories[0]);
+    }
+  };
 
   const handleMediaAdded = (item: ComplaintMediaItem) => {
     setMediaList((prev) => [...prev, item]);
@@ -123,12 +142,19 @@ export const ReportComplaintPage: React.FC = () => {
     setAudioItem(undefined);
   };
 
-  const handleCategoryChange = (cat: ComplaintCategory) => {
-    setCategory(cat);
-    const catObj = CATEGORIES.find((c) => c.label === cat);
-    if (catObj && catObj.subcategories.length > 0) {
-      setSubcategory(catObj.subcategories[0]);
+  // Step Navigation with validation
+  const goToStep = (step: number) => {
+    setStepError(null);
+
+    // If moving forward from Step 3 (Description), validate title
+    if (currentStep === 3 && step > 3) {
+      if (!title.trim() || title.trim().length < 3) {
+        setStepError('Please enter a clear title (at least 3 characters) for your grievance.');
+        return;
+      }
     }
+
+    setCurrentStep(step);
   };
 
   const handleSubmit = async () => {
@@ -137,16 +163,16 @@ export const ReportComplaintPage: React.FC = () => {
       return;
     }
 
-    if (!title.trim()) {
-      setError('Please provide a title for the grievance.');
-      setCurrentStep(2);
+    if (!title.trim() || title.trim().length < 3) {
+      setStepError('Please provide a title with at least 3 characters.');
+      setCurrentStep(3);
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setStepError(null);
 
-    // Combine media
+    // Combine media items
     const allMedia = [...mediaList];
     if (audioItem) {
       allMedia.push(audioItem);
@@ -154,8 +180,8 @@ export const ReportComplaintPage: React.FC = () => {
 
     try {
       const result = await createComplaint({
-        title,
-        description: description || 'Civic infrastructure complaint submitted via CivicEye multimodal reporting portal.',
+        title: title.trim(),
+        description: description.trim() || 'Civic grievance reported through multimodal submission portal.',
         category,
         subcategory,
         severity: currentPriority,
@@ -169,9 +195,9 @@ export const ReportComplaintPage: React.FC = () => {
       });
 
       setSubmittedTrackingId(result.tracking_id);
-      setCurrentStep(5); // Success step
+      setCurrentStep(6); // Step 6: Tracking ID Confirmation
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to submit grievance. Please try again.');
+      setStepError(err.response?.data?.detail || 'Failed to submit grievance. Please verify details and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -184,6 +210,15 @@ export const ReportComplaintPage: React.FC = () => {
       setTimeout(() => setCopied(false), 2500);
     }
   };
+
+  const stepperItems = [
+    { num: 1, label: 'Category', icon: Layers },
+    { num: 2, label: 'Media', icon: Camera },
+    { num: 3, label: 'Description', icon: MessageSquare },
+    { num: 4, label: 'Location', icon: MapPin },
+    { num: 5, label: 'Review', icon: Eye },
+    { num: 6, label: 'Tracking ID', icon: Check },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
@@ -202,13 +237,13 @@ export const ReportComplaintPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Auth prompt if guest */}
+      {/* Guest Warning / Persona switcher */}
       {!isAuthenticated && (
         <div className="p-4 rounded-2xl bg-slate-900 border border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-blue-400 shrink-0" />
             <p className="text-xs text-slate-300">
-              You are reporting as a guest. Sign in or use the 1-click test persona to link this issue to your citizen dashboard.
+              You are currently reporting as a guest. Sign in or use the 1-click test persona to link this issue to your citizen dashboard.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -228,20 +263,15 @@ export const ReportComplaintPage: React.FC = () => {
         </div>
       )}
 
-      {/* Step Progress Stepper */}
-      {currentStep < 5 && (
-        <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
-          {[
-            { num: 1, label: '1. Media Capture' },
-            { num: 2, label: '2. Issue Details' },
-            { num: 3, label: '3. Location Pin' },
-            { num: 4, label: '4. AI Review' },
-          ].map((st) => (
+      {/* 6-Step Stepper Header */}
+      {currentStep <= 5 && (
+        <div className="grid grid-cols-5 gap-2 text-center text-xs font-semibold">
+          {stepperItems.slice(0, 5).map((st) => (
             <button
               key={st.num}
               type="button"
-              onClick={() => setCurrentStep(st.num)}
-              className={`py-2.5 rounded-xl border transition-all ${
+              onClick={() => goToStep(st.num)}
+              className={`py-2 px-1 rounded-xl border flex flex-col items-center gap-1 transition-all ${
                 currentStep === st.num
                   ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20'
                   : currentStep > st.num
@@ -249,26 +279,105 @@ export const ReportComplaintPage: React.FC = () => {
                   : 'bg-slate-950 text-slate-500 border-slate-800'
               }`}
             >
-              <span>{st.label}</span>
+              <st.icon className="w-3.5 h-3.5" />
+              <span className="truncate">{st.num}. {st.label}</span>
             </button>
           ))}
         </div>
       )}
 
-      {error && (
+      {/* Step Validation / API Error Banner */}
+      {stepError && (
         <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+          <span>{stepError}</span>
         </div>
       )}
 
-      {/* STEP 1: MEDIA CAPTURE */}
+      {/* STEP 1: SELECT COMPLAINT CATEGORY */}
       {currentStep === 1 && (
         <div className="p-6 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white">Step 1: Capture Media Evidence</h3>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 text-[11px] font-semibold">
+              <Layers className="w-3.5 h-3.5" />
+              <span>Step 1 of 5</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">Select Complaint Category</h3>
             <p className="text-xs text-slate-400">
-              Provide visual photographs or speak a Telugu/English voice description of the damage.
+              Select the primary infrastructure category that best describes the municipal issue.
+            </p>
+          </div>
+
+          {/* Category Grid */}
+          <div className="space-y-2">
+            <label className="text-xs text-slate-300 font-medium">Infrastructure Category *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => handleCategoryChange(c.label)}
+                  className={`p-3.5 rounded-xl border text-left transition-all ${
+                    category === c.label
+                      ? 'bg-blue-600/20 border-blue-500 text-blue-200 font-bold shadow-md shadow-blue-500/10 ring-1 ring-blue-500/50'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="font-semibold text-xs text-white">{c.label}</div>
+                  <div className="text-[10px] text-cyan-400/80 truncate mt-1">
+                    Routes to: {c.dept}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subcategory */}
+          <div className="space-y-1.5 text-xs">
+            <label className="text-slate-300 font-medium">Specific Problem Type / Subcategory</label>
+            <select
+              value={subcategory}
+              onChange={(e) => setSubcategory(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
+            >
+              {selectedCategoryObj.subcategories.map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Routing recommendation badge */}
+          <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-900/50 flex items-center justify-between text-xs">
+            <span className="text-slate-400">Recommended Handling Department:</span>
+            <span className="font-semibold text-cyan-400">{selectedCategoryObj.dept}</span>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={() => goToStep(2)}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+            >
+              <span>Continue to Media Upload</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2: UPLOAD PHOTOGRAPHS, VIDEOS OR VOICE RECORDINGS */}
+      {currentStep === 2 && (
+        <div className="p-6 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 text-[11px] font-semibold">
+              <Camera className="w-3.5 h-3.5" />
+              <span>Step 2 of 5</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">Upload Media Evidence</h3>
+            <p className="text-xs text-slate-400">
+              Upload photographs, recorded videos, or audio evidence of the damage. (Files validated up to 25MB).
             </p>
           </div>
 
@@ -278,39 +387,45 @@ export const ReportComplaintPage: React.FC = () => {
             onMediaRemoved={handleMediaRemoved}
           />
 
-          <VoiceRecorder
-            currentAudio={audioItem}
-            onAudioUploaded={handleAudioUploaded}
-            onAudioRemoved={handleAudioRemoved}
-          />
-
-          <div className="flex justify-end pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
-              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+              onClick={() => goToStep(1)}
+              className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-800"
             >
-              <span>Continue to Issue Details</span>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Category</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => goToStep(3)}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
+            >
+              <span>Continue to Description</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: ISSUE DETAILS */}
-      {currentStep === 2 && (
+      {/* STEP 3: ENTER WRITTEN DESCRIPTION OR RECORD A VOICE COMPLAINT */}
+      {currentStep === 3 && (
         <div className="p-6 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white">Step 2: Grievance Information</h3>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 text-[11px] font-semibold">
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Step 3 of 5</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">Description & Voice Complaint</h3>
             <p className="text-xs text-slate-400">
-              Describe what is damaged. Our backend routes it to the responsible municipal department automatically.
+              Enter a clear title, type a written description, or record a voice note in Telugu or English.
             </p>
           </div>
 
           <div className="space-y-4 text-xs">
             {/* Title */}
             <div className="space-y-1.5">
-              <label className="text-slate-300 font-medium">Grievance Headline / Summary *</label>
+              <label className="text-slate-300 font-medium">Grievance Headline / Title *</label>
               <input
                 type="text"
                 required
@@ -321,53 +436,25 @@ export const ReportComplaintPage: React.FC = () => {
               />
             </div>
 
-            {/* Category Grid */}
+            {/* Description Textarea */}
             <div className="space-y-1.5">
-              <label className="text-slate-300 font-medium">Civic Infrastructure Category *</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.label}
-                    type="button"
-                    onClick={() => handleCategoryChange(c.label)}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      category === c.label
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-bold shadow-sm'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <div className="font-semibold text-xs">{c.label}</div>
-                    <div className="text-[10px] text-slate-500 truncate mt-0.5">{c.dept}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Subcategory */}
-            <div className="space-y-1.5">
-              <label className="text-slate-300 font-medium">Specific Problem Type</label>
-              <select
-                value={subcategory}
-                onChange={(e) => setSubcategory(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500"
-              >
-                {selectedCategoryObj.subcategories.map((sub) => (
-                  <option key={sub} value={sub}>
-                    {sub}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="text-slate-300 font-medium">Detailed Description</label>
+              <label className="text-slate-300 font-medium">Written Description</label>
               <textarea
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide details about the issue (e.g. depth of pothole, frequency of water overflow, landmark references)..."
+                placeholder="Describe the severity, frequency, or landmarks (e.g. Near Gandhi statue junction, water overflowing into street)..."
                 className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Voice Recorder Integration */}
+            <div className="space-y-1.5 pt-2">
+              <label className="text-slate-300 font-medium">Or Record Voice Complaint (Telugu / English)</label>
+              <VoiceRecorder
+                currentAudio={audioItem}
+                onAudioUploaded={handleAudioUploaded}
+                onAudioRemoved={handleAudioRemoved}
               />
             </div>
           </div>
@@ -375,15 +462,15 @@ export const ReportComplaintPage: React.FC = () => {
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => setCurrentStep(1)}
+              onClick={() => goToStep(2)}
               className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-800"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>Back to Media</span>
             </button>
             <button
               type="button"
-              onClick={() => setCurrentStep(3)}
+              onClick={() => goToStep(4)}
               className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
             >
               <span>Continue to Location</span>
@@ -393,13 +480,17 @@ export const ReportComplaintPage: React.FC = () => {
         </div>
       )}
 
-      {/* STEP 3: LOCATION */}
-      {currentStep === 3 && (
+      {/* STEP 4: SELECT GEOGRAPHICAL LOCATION USING MAP */}
+      {currentStep === 4 && (
         <div className="p-6 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white">Step 3: Select Incident Location</h3>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 text-[11px] font-semibold">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Step 4 of 5</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">Select Geographical Location</h3>
             <p className="text-xs text-slate-400">
-              Drag the pin on OpenStreetMap or tap "Use My Current Location" for precise GPS triage.
+              Pinpoint the issue on the interactive map or use browser GPS auto-detection. Manual address entry is available below.
             </p>
           </div>
 
@@ -413,27 +504,37 @@ export const ReportComplaintPage: React.FC = () => {
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
+              onClick={() => goToStep(3)}
               className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-800"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>Back to Description</span>
             </button>
             <button
               type="button"
-              onClick={() => setCurrentStep(4)}
+              onClick={() => goToStep(5)}
               className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all"
             >
-              <span>Review AI Triage Summary</span>
+              <span>Review Grievance Summary</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 4: REVIEW & CONFIRM */}
-      {currentStep === 4 && (
+      {/* STEP 5: DISPLAY COMPLAINT REVIEW SCREEN */}
+      {currentStep === 5 && (
         <div className="space-y-6">
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs font-bold text-white">Step 5: Review Grievance Details Before Submission</span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Pre-Dispatch Triage
+            </span>
+          </div>
+
           <PreSubmissionReviewCard
             title={title || 'Untitled Grievance'}
             description={description || 'Multimodal complaint report.'}
@@ -445,17 +546,17 @@ export const ReportComplaintPage: React.FC = () => {
             mediaList={audioItem ? [...mediaList, audioItem] : mediaList}
           />
 
-          {/* Interactive Severity Assessment Sliders for Citizen Transparency */}
+          {/* Explainable Severity Factor Controls */}
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
             <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
               <Sliders className="w-4 h-4" />
-              <span>Explainable Severity Factors (Formula: 0.30×Damage + 0.30×Risk + 0.20×Impact + 0.20×Sensitivity)</span>
+              <span>Severity Scoring (Formula: 0.30×Damage + 0.30×Risk + 0.20×Impact + 0.20×Sensitivity)</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="space-y-1">
                 <div className="flex justify-between text-slate-400">
-                  <span>Physical Damage:</span>
+                  <span>Physical Damage Factor:</span>
                   <span className="font-mono text-blue-400">{damageScore}/100</span>
                 </div>
                 <input
@@ -518,11 +619,11 @@ export const ReportComplaintPage: React.FC = () => {
           <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800">
             <button
               type="button"
-              onClick={() => setCurrentStep(3)}
+              onClick={() => goToStep(4)}
               className="px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center gap-2 border border-slate-800"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>Back to Location</span>
             </button>
 
             <button
@@ -532,20 +633,24 @@ export const ReportComplaintPage: React.FC = () => {
               className="px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{submitting ? 'Submitting to Civic Registry...' : 'Confirm & Submit Grievance'}</span>
+              <span>{submitting ? 'Submitting to Civic Registry...' : 'Submit & Generate Tracking ID'}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 5: SUBMISSION SUCCESS SCREEN */}
-      {currentStep === 5 && submittedTrackingId && (
+      {/* STEP 6: SUBMISSION SUCCESS SCREEN & TRACKING ID */}
+      {currentStep === 6 && submittedTrackingId && (
         <div className="p-8 sm:p-12 rounded-2xl bg-slate-900 border border-emerald-500/40 text-center space-y-6 shadow-2xl animate-fade-in">
           <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center border border-emerald-500/30">
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+              <Check className="w-3.5 h-3.5" />
+              <span>Step 6: Registration Complete</span>
+            </div>
             <h2 className="text-2xl font-bold text-white tracking-tight">
               Grievance Successfully Registered!
             </h2>
@@ -575,6 +680,7 @@ export const ReportComplaintPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Action Navigation */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
             <Link
               to={`/track/${submittedTrackingId}`}

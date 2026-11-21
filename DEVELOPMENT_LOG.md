@@ -46,12 +46,14 @@ All implementation milestones, technical decisions, tests, and task states are s
    - Visualizes recommended category, responsible government department, and estimated priority breakdown before citizen submits.
 
 7. **Citizen Reporting Wizard (`frontend/src/pages/ReportComplaintPage.tsx`):**
-   - 4-step progressive wizard:
-     - Step 1: Multimodal Media Capture (Photos, Videos, Telugu/English Voice Notes).
-     - Step 2: Issue Details & Description (Category selection, title, detailed text, voice transcript preview).
-     - Step 3: Location Selection (GPS auto-detection & interactive Leaflet map).
-     - Step 4: AI Pre-Submission Review & Confirmation.
-     - Step 5: Submission Success Confirmation with tracking ID card and direct tracking link.
+   - Polished 6-step progressive wizard:
+     - Step 1: Select complaint category (Road Infrastructure, Water Supply, Sanitation, Drainage, Electricity & Streetlights, Public Infrastructure, Other) + Subcategory + Department routing preview.
+     - Step 2: Upload photographs, videos, or voice recordings (Drag & drop, 25MB validation, client-side thumbnail previews, file removal).
+     - Step 3: Enter written description or record voice complaint (Title input, description textarea, and interactive bilingual Voice Note Recorder for Telugu/English).
+     - Step 4: Select geographical location using the map (Leaflet + OpenStreetMap interactive map, GPS auto-detect, draggable marker pin, reverse geocoding & manual address fields).
+     - Step 5: Display complaint review screen (Comprehensive PreSubmissionReviewCard displaying all entered data, media thumbnails, description, voice note, address, coordinates, and explainable priority factor scoring).
+     - Step 6: Submit and generate tracking ID (Confirmation screen with `CVE-YYYYMMDD-XXXX` tracking code, 1-click copy, progress timeline, and navigation links to Track Grievance or Citizen Dashboard).
+   - Form data preserved seamlessly across step transitions with per-step field validations.
 
 8. **Citizen Dashboard & Detail Tracking (`frontend/src/pages/CitizenDashboard.tsx`, `ComplaintDetailPage.tsx`, `TrackComplaintPage.tsx`):**
    - `CitizenDashboard.tsx`: Displays summary metric cards (Total, In Progress, Resolved, Critical), category/status filter buttons, and searchable grievance cards.
@@ -65,12 +67,19 @@ All implementation milestones, technical decisions, tests, and task states are s
 ---
 
 ### Verification and Tests Performed
-- **Automated Pytest Suite (`pytest tests/ -v`):** -> **14 PASSED (100%)**
+- **Automated Pytest Suite (`pytest tests/ -v`):** -> **21 PASSED (100%)**
   - `test_media_upload` PASSED
-  - `test_create_complaint` PASSED
-  - `test_list_complaints` PASSED
+  - `test_media_upload_unsupported_format_rejected` PASSED
+  - `test_successful_complaint_submission` PASSED
+  - `test_unauthorized_submission_rejected` PASSED
+  - `test_invalid_payload_rejected` PASSED
+  - `test_complaint_retrieval` PASSED
+  - `test_citizen_data_isolation` PASSED
+  - `test_administrator_access` PASSED
+  - `test_media_metadata_persistence` PASSED
+  - `test_tracking_id_uniqueness` PASSED
+  - `test_status_history_persistence` PASSED
   - `test_track_complaint_public` PASSED
-  - `test_update_complaint_status` PASSED
   - `test_seed_demo_accounts_exist` PASSED
   - `test_user_registration` PASSED
   - `test_duplicate_registration_rejected` PASSED
@@ -80,7 +89,7 @@ All implementation milestones, technical decisions, tests, and task states are s
   - `test_root_endpoint` PASSED
   - `test_health_endpoint` PASSED
   - `test_v1_health_endpoint` PASSED
-- **Frontend TypeScript Build Test (`npm run build`):** -> **0 TypeScript errors, 1,578 modules compiled in 6.23s**.
+- **Frontend TypeScript Build Test (`npm run build`):** -> **0 TypeScript errors, 1,578 modules compiled in 6.51s**.
 
 ---
 

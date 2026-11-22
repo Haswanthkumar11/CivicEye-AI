@@ -80,7 +80,11 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       const mediaItem = await uploadMediaFile(file);
       onAudioUploaded(mediaItem);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to upload audio recording.');
+      if (err.response?.status === 401) {
+        setError('Authentication required to upload audio. Please sign in or use 1-Click Demo Citizen.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to upload audio recording.');
+      }
     } finally {
       setIsUploading(false);
     }

@@ -42,11 +42,14 @@ def create_dynamic_user(role: str = "citizen"):
 
 
 def test_media_upload():
-    # Simulate a small fake PNG file upload
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Simulate a small fake PNG file upload with valid PNG signature
     fake_png_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
     files = {"file": ("pothole_sample.png", io.BytesIO(fake_png_data), "image/png")}
     
-    res = client.post("/api/complaints/upload-media", files=files)
+    res = client.post("/api/complaints/upload-media", files=files, headers=headers)
     assert res.status_code == 200, res.text
     data = res.json()
     assert "file_url" in data
@@ -54,11 +57,44 @@ def test_media_upload():
     assert data["file_url"].startswith("/uploads/")
 
 
-def test_media_upload_unsupported_format_rejected():
-    files = {"file": ("bad_script.exe", io.BytesIO(b"malicious_bytes"), "application/octet-stream")}
+def test_media_upload_unauthenticated_rejected():
+    fake_png_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+    files = {"file": ("unauth.png", io.BytesIO(fake_png_data), "image/png")}
     res = client.post("/api/complaints/upload-media", files=files)
+    assert res.status_code == 401
+
+
+def test_media_upload_unsupported_format_rejected():
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    files = {"file": ("bad_script.exe", io.BytesIO(b"malicious_bytes"), "application/octet-stream")}
+    res = client.post("/api/complaints/upload-media", files=files, headers=headers)
     assert res.status_code == 400
     assert "Unsupported file format" in res.json()["detail"]
+
+
+def test_media_upload_content_signature_mismatch_rejected():
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    # Extension is .png, but content is plaintext HTML
+    files = {"file": ("spoofed.png", io.BytesIO(b"<html><script>alert(1)</script></html>"), "image/png")}
+    res = client.post("/api/complaints/upload-media", files=files, headers=headers)
+    assert res.status_code == 400
+    assert "signature does not match" in res.json()["detail"]
+
+
+def test_media_upload_path_traversal_sanitized():
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_png_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
+    # Attempt directory traversal in filename
+    files = {"file": ("../../../../safe_traversal.png", io.BytesIO(fake_png_data), "image/png")}
+    res = client.post("/api/complaints/upload-media", files=files, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert ".." not in data["file_url"]
+    assert data["file_url"].startswith("/uploads/")
+    assert data["file_name"] == "safe_traversal.png"
 
 
 def test_successful_complaint_submission():
@@ -338,3 +374,97 @@ def test_track_complaint_public():
     assert track_data["status"] == "SUBMITTED"
     assert len(track_data["timeline_stages"]) == 5
     assert track_data["timeline_stages"][0]["completed"] is True
+
+
+def test_citizen_cannot_update_status():
+    token = get_citizen_token()
+    admin_token = get_admin_token()
+
+    # Create complaint as citizen
+    create_res = client.post("/api/complaints", json={
+        "title": "Status Privilege Test",
+        "description": "Verifying regular citizens cannot tamper with status.",
+        "category": "Drainage",
+    }, headers={"Authorization": f"Bearer {token}"})
+    assert create_res.status_code == 201
+    complaint_id = create_res.json()["id"]
+
+    # Citizen attempts to mark their own complaint as RESOLVED -> must be 403 Forbidden
+    patch_res = client.patch(
+        f"/api/complaints/{complaint_id}/status",
+        json={"status": "RESOLVED", "notes": "Self-resolved by citizen."},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert patch_res.status_code == 403
+    assert "Administrative privileges required" in patch_res.json()["detail"]
+
+
+def test_complaint_creation_rejects_external_or_traversal_media_url():
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # External URL in media
+    res = client.post("/api/complaints", json={
+        "title": "Malicious External Media",
+        "description": "Testing rejection of non-internal URLs.",
+        "category": "Road Infrastructure",
+        "media": [
+            {
+                "media_type": "IMAGE",
+                "file_url": "https://malicious-site.com/exploit.jpg",
+            }
+        ]
+    }, headers=headers)
+    assert res.status_code == 400
+    assert "only internal /uploads/ paths are accepted" in res.json()["detail"]
+
+    # Traversal in media URL
+    res2 = client.post("/api/complaints", json={
+        "title": "Traversal Media URL",
+        "description": "Testing rejection of traversal in URL.",
+        "category": "Road Infrastructure",
+        "media": [
+            {
+                "media_type": "IMAGE",
+                "file_url": "/uploads/../../etc/passwd",
+            }
+        ]
+    }, headers=headers)
+    assert res2.status_code == 400
+    assert "Path traversal in media URL is strictly prohibited" in res2.json()["detail"]
+
+
+def test_public_tracking_privacy_protection():
+    token = get_citizen_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create_res = client.post("/api/complaints", json={
+        "title": "Confidential Citizen Issue",
+        "description": "Public should see status but zero private identity info.",
+        "category": "Sanitation",
+    }, headers=headers)
+    assert create_res.status_code == 201
+    tracking_id = create_res.json()["tracking_id"]
+
+    track_res = client.get(f"/api/complaints/track/{tracking_id}")
+    assert track_res.status_code == 200
+    data = track_res.json()
+
+    # Verify no PII keys exist in public tracking response
+    assert "citizen_id" not in data
+    assert "citizen" not in data
+    assert "email" not in data
+    assert "phone" not in data
+    assert "user" not in data
+
+    # Verify status history doesn't leak changed_by user UUIDs
+    for stage in data.get("status_history", []):
+        assert "changed_by" not in stage
+
+
+def test_security_headers_present():
+    res = client.get("/")
+    assert res.status_code == 200
+    assert res.headers.get("x-content-type-options") == "nosniff"
+    assert res.headers.get("x-frame-options") == "DENY"
+

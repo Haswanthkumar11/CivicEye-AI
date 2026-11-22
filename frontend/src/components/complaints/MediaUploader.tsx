@@ -35,7 +35,11 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
         onMediaAdded(uploadedItem);
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Media upload encountered an error.');
+      if (err.response?.status === 401) {
+        setError('Authentication required to upload media. Please sign in or use 1-Click Demo Citizen.');
+      } else {
+        setError(err.response?.data?.detail || 'Media upload encountered an error.');
+      }
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

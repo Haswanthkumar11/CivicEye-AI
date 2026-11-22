@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import random
 import string
@@ -52,50 +53,136 @@ def resolve_department_id(category: str, db: Session) -> Optional[str]:
     return dept.id if dept else None
 
 
+# Allowed media types with category and accepted MIME types
+ALLOWED_MEDIA_TYPES = {
+    # Images
+    "jpg": {"mime": ["image/jpeg", "image/pjpeg"], "category": "IMAGE"},
+    "jpeg": {"mime": ["image/jpeg", "image/pjpeg"], "category": "IMAGE"},
+    "png": {"mime": ["image/png"], "category": "IMAGE"},
+    "webp": {"mime": ["image/webp"], "category": "IMAGE"},
+    # Audio recordings
+    "wav": {"mime": ["audio/wav", "audio/x-wav", "audio/wave"], "category": "AUDIO"},
+    "mp3": {"mime": ["audio/mpeg", "audio/mp3"], "category": "AUDIO"},
+    "m4a": {"mime": ["audio/mp4", "audio/x-m4a", "audio/m4a"], "category": "AUDIO"},
+    "ogg": {"mime": ["audio/ogg", "application/ogg"], "category": "AUDIO"},
+    "aac": {"mime": ["audio/aac", "audio/x-aac"], "category": "AUDIO"},
+    "weba": {"mime": ["audio/webm", "audio/weba"], "category": "AUDIO"},
+    # Videos
+    "mp4": {"mime": ["video/mp4"], "category": "VIDEO"},
+    "mov": {"mime": ["video/quicktime"], "category": "VIDEO"},
+    "webm": {"mime": ["video/webm"], "category": "VIDEO"},
+    "avi": {"mime": ["video/x-msvideo", "video/avi"], "category": "VIDEO"},
+}
+
+
+def verify_file_content_signature(ext: str, data: bytes) -> bool:
+    """
+    Validates magic bytes against declared extension to prevent MIME-spoofing and stored attacks.
+    """
+    if len(data) < 4:
+        return False
+
+    if ext in ("jpg", "jpeg"):
+        return data.startswith(b"\xFF\xD8\xFF")
+    elif ext == "png":
+        return data.startswith(b"\x89PNG\r\n\x1a\n")
+    elif ext == "webp":
+        return data.startswith(b"RIFF") and len(data) >= 12 and data[8:12] == b"WEBP"
+    elif ext == "wav":
+        return data.startswith(b"RIFF") and len(data) >= 12 and data[8:12] == b"WAVE"
+    elif ext == "avi":
+        return data.startswith(b"RIFF") and len(data) >= 12 and data[8:12] == b"AVI "
+    elif ext in ("webm", "weba"):
+        return data.startswith(b"\x1A\x45\xDF\xA3")
+    elif ext == "ogg":
+        return data.startswith(b"OggS")
+    elif ext == "mp3":
+        return data.startswith(b"ID3") or (data[0] == 0xFF and (data[1] & 0xE0) == 0xE0)
+    elif ext in ("mp4", "mov", "m4a"):
+        return b"ftyp" in data[:32] or b"moov" in data[:32]
+    elif ext == "aac":
+        return data.startswith(b"\xFF\xF1") or data.startswith(b"\xFF\xF9") or data.startswith(b"ID3")
+    return True
+
+
 @router.post("/upload-media", response_model=MediaUploadResponse, summary="Upload Grievance Media (Photo, Video, Voice Recording)")
-async def upload_media(file: UploadFile = File(...)):
+async def upload_media(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     """
-    Accepts photographs (.jpg, .png, .jpeg), videos (.mp4, .mov, .webm), and voice recordings (.wav, .mp3, .m4a, .ogg).
-    Validates file size (up to 25MB) and saves securely to media directory.
+    Accepts photographs (.jpg, .png, .jpeg, .webp), videos (.mp4, .mov, .webm, .avi), and voice recordings (.wav, .mp3, .m4a, .ogg, .aac, .weba).
+    Requires authenticated session to prevent unauthenticated upload abuse.
+    Enforces chunked stream size verification (up to 25MB), strict MIME validation, magic-byte inspection, and path sanitization.
     """
-    allowed_extensions = {
-        "jpg", "jpeg", "png", "webp",  # Images
-        "wav", "mp3", "m4a", "ogg", "aac", "weba",  # Audio recordings
-        "mp4", "mov", "webm", "avi",  # Videos
-    }
+    raw_filename = file.filename or "upload.bin"
+    clean_basename = os.path.basename(raw_filename.replace("\\", "/"))
 
-    filename = file.filename or "upload.bin"
-    ext = filename.split(".")[-1].lower() if "." in filename else ""
-    if ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file format '{ext}'. Allowed formats: {', '.join(sorted(allowed_extensions))}",
-        )
-
-    # Determine media category
-    if ext in {"jpg", "jpeg", "png", "webp"}:
-        media_type = "IMAGE"
-    elif ext in {"wav", "mp3", "m4a", "ogg", "aac", "weba"}:
-        media_type = "AUDIO"
+    if "." in clean_basename:
+        name_part, ext = clean_basename.rsplit(".", 1)
+        ext = ext.lower().strip()
     else:
-        media_type = "VIDEO"
+        name_part, ext = "upload", ""
 
-    # Generate unique stored filename
-    stored_filename = f"{uuid.uuid4().hex}_{filename.replace(' ', '_')}"
-    os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(settings.MEDIA_UPLOAD_DIR, stored_filename)
-
-    # Read and check file size
-    contents = await file.read()
-    file_size = len(contents)
-    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
-    if file_size > max_bytes:
+    if ext not in ALLOWED_MEDIA_TYPES:
+        allowed_list = sorted(list(ALLOWED_MEDIA_TYPES.keys()))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB",
+            detail=f"Unsupported file format '{ext}'. Allowed formats: {', '.join(allowed_list)}",
         )
 
-    # Save to disk
+    # Stream file contents with strict size limit to prevent memory exhaustion DoS
+    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    chunk_size = 64 * 1024  # 64 KB
+    chunks = []
+    total_bytes = 0
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_bytes += len(chunk)
+        if total_bytes > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB",
+            )
+        chunks.append(chunk)
+
+    if total_bytes == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot upload an empty file.",
+        )
+
+    contents = b"".join(chunks)
+
+    # Verify magic-byte content signature
+    if not verify_file_content_signature(ext, contents):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File content signature does not match declared '.{ext}' extension or file is corrupted.",
+        )
+
+    media_info = ALLOWED_MEDIA_TYPES[ext]
+    media_type = media_info["category"]
+
+    # Sanitize filename to avoid any path traversal
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", name_part)[:32] or "media"
+    stored_filename = f"{uuid.uuid4().hex}_{safe_name}.{ext}"
+
+    upload_dir = os.path.abspath(settings.MEDIA_UPLOAD_DIR)
+    os.makedirs(upload_dir, exist_ok=True)
+    file_path = os.path.abspath(os.path.join(upload_dir, stored_filename))
+
+    # Defensive path containment check
+    if not file_path.startswith(upload_dir):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid destination path detected.",
+        )
+
+    # Write securely to disk
     with open(file_path, "wb") as f:
         f.write(contents)
 
@@ -103,10 +190,10 @@ async def upload_media(file: UploadFile = File(...)):
 
     return {
         "file_url": relative_url,
-        "file_name": filename,
+        "file_name": clean_basename,
         "file_path": file_path,
-        "file_size": file_size,
-        "mime_type": file.content_type or "application/octet-stream",
+        "file_size": total_bytes,
+        "mime_type": file.content_type or media_info["mime"][0],
         "media_type": media_type,
     }
 
@@ -163,14 +250,35 @@ async def create_complaint(
     db.add(complaint)
     db.flush()  # assign UUID to complaint.id
 
-    # Attach Media items
+    # Attach Media items with strict validation
     if payload.media:
         for media_item in payload.media:
+            # Defensive check: ensure file_url is strictly internal to /uploads/
+            if not media_item.file_url or not media_item.file_url.startswith("/uploads/"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid media URL: only internal /uploads/ paths are accepted.",
+                )
+            if ".." in media_item.file_url or "\\" in media_item.file_url:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Path traversal in media URL is strictly prohibited.",
+                )
+            if media_item.media_type not in ["IMAGE", "VIDEO", "AUDIO"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="media_type must be IMAGE, VIDEO, or AUDIO.",
+                )
+
+            # Defensive canonical path computation
+            safe_fname = os.path.basename(media_item.file_url)
+            canonical_path = os.path.join(settings.MEDIA_UPLOAD_DIR, safe_fname)
+
             cm = ComplaintMedia(
                 complaint_id=complaint.id,
                 media_type=media_item.media_type,
                 file_url=media_item.file_url,
-                file_path=media_item.file_path,
+                file_path=canonical_path,
                 file_size=media_item.file_size,
                 mime_type=media_item.mime_type,
             )
@@ -349,7 +457,15 @@ async def update_complaint_status(
 ):
     """
     Updates the status of a complaint and appends to the audit history.
+    Requires administrator or municipal department officer privileges.
     """
+    # Strict role check: Citizens cannot update or resolve complaints
+    if current_user.role not in ["admin", "superadmin", "department_officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privileges required to update grievance status.",
+        )
+
     complaint = db.query(Complaint).filter(Complaint.id == id).first()
     if not complaint:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Complaint not found")

@@ -60,7 +60,7 @@ class AIPipeline:
         severity = SeverityEngine.calculate(
             damage_factor=extraction.estimated_damage_level,
             risk_factor=extraction.potential_public_risk,
-            public_impact_factor=50.0,  # Baseline public impact from text hints
+            public_impact_factor=extraction.estimated_public_impact,
             location_sensitivity_factor=extraction.location_sensitivity,
         )
 
@@ -91,25 +91,54 @@ class AIPipeline:
     ) -> AIAnalysisResult:
         """
         Persists structured AI analysis output to the relational database (ai_analysis_results table).
+        Implements idempotent upsert: if an analysis record already exists for this complaint,
+        it updates the record in place to prevent uncontrolled duplicates.
+        Also synchronizes computed severity and risk onto the parent complaint record.
         """
-        record = AIAnalysisResult(
-            complaint_id=complaint_id,
-            language_detected="en",
-            transcription_text=None,
-            yolo_detections=None,
-            gemini_analysis=analysis.extraction.model_dump(),
-            damage_score=analysis.severity.damage_factor,
-            risk_score=analysis.severity.risk_factor,
-            impact_score=analysis.severity.public_impact_factor,
-            sensitivity_score=analysis.severity.location_sensitivity_factor,
-            calculated_severity=analysis.severity.final_score,
-            model_versions={
-                "pipeline_status": analysis.status,
-                "model_version": analysis.model_version,
-                "latency_ms": analysis.processing_time_ms,
-            },
-        )
-        db.add(record)
+        metadata_payload = {
+            "pipeline_status": analysis.status,
+            "model_version": analysis.model_version,
+            "latency_ms": analysis.processing_time_ms,
+            "routing": analysis.routing.model_dump(),
+            "severity_level": analysis.severity.severity_level,
+            "calculation_explanation": analysis.severity.calculation_explanation,
+            "formula": analysis.severity.formula,
+        }
+
+        existing = db.query(AIAnalysisResult).filter(AIAnalysisResult.complaint_id == complaint_id).first()
+        if existing:
+            existing.language_detected = "en"
+            existing.gemini_analysis = analysis.extraction.model_dump()
+            existing.damage_score = analysis.severity.damage_factor
+            existing.risk_score = analysis.severity.risk_factor
+            existing.impact_score = analysis.severity.public_impact_factor
+            existing.sensitivity_score = analysis.severity.location_sensitivity_factor
+            existing.calculated_severity = analysis.severity.final_score
+            existing.model_versions = metadata_payload
+            record = existing
+        else:
+            record = AIAnalysisResult(
+                complaint_id=complaint_id,
+                language_detected="en",
+                transcription_text=None,
+                yolo_detections=None,
+                gemini_analysis=analysis.extraction.model_dump(),
+                damage_score=analysis.severity.damage_factor,
+                risk_score=analysis.severity.risk_factor,
+                impact_score=analysis.severity.public_impact_factor,
+                sensitivity_score=analysis.severity.location_sensitivity_factor,
+                calculated_severity=analysis.severity.final_score,
+                model_versions=metadata_payload,
+            )
+            db.add(record)
+
+        # Synchronize computed priority score back onto the parent complaint record
+        complaint = db.query(Complaint).filter(Complaint.id == complaint_id).first()
+        if complaint:
+            complaint.severity = analysis.severity.severity_level
+            complaint.severity_score = analysis.severity.final_score
+            complaint.risk_level = analysis.severity.severity_level
+
         db.commit()
         db.refresh(record)
         return record

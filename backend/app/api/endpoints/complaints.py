@@ -47,8 +47,10 @@ def generate_tracking_id() -> str:
 
 
 def resolve_department_id(category: str, db: Session) -> Optional[str]:
-    """Resolves default department UUID based on category code mapping"""
-    dept_code = CATEGORY_DEPARTMENT_MAP.get(category, "ROADS")
+    """Resolves default department UUID based on category code mapping. Returns None if unmapped."""
+    dept_code = CATEGORY_DEPARTMENT_MAP.get(category)
+    if not dept_code:
+        return None
     dept = db.query(Department).filter(Department.code == dept_code).first()
     return dept.id if dept else None
 

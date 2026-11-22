@@ -33,10 +33,10 @@ def clamp_factor(value: Optional[float], default: float = 50.0) -> float:
 def get_severity_level(score: float) -> str:
     """
     Maps a continuous severity score to one of the four standardized priority tiers:
-      - 0  to 30 : LOW
-      - 31 to 60 : MEDIUM
-      - 61 to 80 : HIGH
-      - 81 to 100: CRITICAL
+      - LOW: 0.0 <= score <= 30.0
+      - MEDIUM: 30.0 < score <= 60.0
+      - HIGH: 60.0 < score <= 80.0
+      - CRITICAL: 80.0 < score <= 100.0
     """
     if score <= THRESHOLD_LOW_MAX:
         return "LOW"

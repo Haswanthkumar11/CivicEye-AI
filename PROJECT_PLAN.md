@@ -93,16 +93,17 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Implement citizen dashboard with live complaint tracking and status history.
 
 ### Phase 4: Multimodal AI Intelligence Pipeline
-#### Phase 4A: AI Intelligence Pipeline Foundation (Completed)
+#### Phase 4A: AI Intelligence Pipeline Foundation (Completed & Verified)
 - [x] Modular AI service architecture (`backend/app/services/ai/`).
-- [x] Gemini API service with timeout handling, structured prompts, JSON parsing, and fallback paths.
-- [x] Deterministic priority scoring engine ($S = 0.30 \times \text{Damage} + 0.30 \times \text{Risk} + 0.20 \times \text{Public Impact} + 0.20 \times \text{Location Sensitivity}$).
-- [x] Rules-based municipal department routing with explainable decision trace.
+- [x] Gemini API service using official `google-genai` SDK with 10s async timeout, structured JSON prompts, and configurable Flash model (`gemini-2.0-flash`).
+- [x] Deterministic priority scoring engine ($S = 0.30 \times \text{Damage} + 0.30 \times \text{Risk} + 0.20 \times \text{Public Impact} + 0.20 \times \text{Location Sensitivity}$) with dedicated public impact factor and continuous boundaries (LOW 0-30, MEDIUM 30-60, HIGH 60-80, CRITICAL 80-100).
+- [x] Rules-based municipal department routing with explainable decision trace and explicit manual review flagging for unmapped complaints (`PENDING_REVIEW`).
 - [x] Modular `ModelRegistry` and abstract interfaces (`IRoadDamageDetector`, `IVoiceTranscriber`) tailored for GTX 1650 (4GB VRAM) and 7.68GB RAM constraints.
 - [x] Authenticated `/api/ai/analyze-complaint` and `/api/ai/status` REST endpoints.
-- [x] Complete automated test suite (48 passing tests) covering boundaries, fallbacks, and security.
+- [x] Database persistence with idempotent upsert preventing duplicate analysis records and synchronizing severity onto parent complaint.
+- [x] Complete automated test suite (51 passed, 1 skipped live test) covering continuous boundaries, all 4 factor weights, upsert idempotency, and security.
 
-#### Phase 4B: Local Road Damage Computer Vision (Next)
+#### Phase 4B: Local Road Damage Computer Vision (Next Planned Phase)
 - [ ] Implement local YOLO road damage detector with OpenCV preprocessing.
 - [ ] Connect detected classes, confidence, and bounding boxes to AI pipeline.
 

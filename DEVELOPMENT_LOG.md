@@ -4,6 +4,71 @@ All implementation milestones, technical decisions, tests, and task states are s
 
 ---
 
+## Log Entry: 2026-11-22 – Phase 4A AI Intelligence Pipeline Review, Corrections & Verification
+
+### Status: Phase 4A Code Review & Refinements Completed (Verified)
+
+### Corrections & Architectural Enhancements Implemented
+1. **Official Google GenAI Python SDK (`google-genai`):**
+   - Migrated from legacy `google-generativeai` to the modern, officially supported Google GenAI Python SDK (`google-genai >= 2.0.0`).
+   - Replaced redundant dual implementations with a unified, robust async client via `client.aio.models.generate_content(...)`.
+   - Enforced strict 10.0-second async timeout with `asyncio.wait_for`.
+   - Model is fully configurable via `GEMINI_MODEL` (defaulting to `gemini-2.0-flash`).
+   - Kept API keys strictly isolated within backend environment variables; verified credentials are never exposed in log output or API responses.
+   - Added separate isolated live test suite (`backend/tests/test_gemini_live.py`) skipped gracefully when live key is not supplied, keeping offline unit tests 100% mocked and fast.
+
+2. **Dedicated Public Impact Factor ($0.20$ Weight):**
+   - Added `estimated_public_impact: float = Field(..., ge=0.0, le=100.0)` directly into `GeminiExtractionResult` and prompt schema.
+   - Implemented heuristic estimation in `complaint_extractor.py` based on affected citizen groups (commuters, two-wheelers, pedestrians) and transit infrastructure (metro stations, bus terminals, arterial highways, markets).
+   - Sensitive public facilities (schools, hospitals, clinics) dynamically scale location sensitivity ($85.0$) and public impact.
+   - Documented and tested conservative neutral baseline ($50.0$) when explicit crowd or traffic indicators are absent from text.
+   - Verified that all 4 factors (Damage 0.30, Risk 0.30, Public Impact 0.20, Location Sensitivity 0.20) individually contribute to the final deterministic priority score.
+
+3. **Continuous Severity Boundaries:**
+   - Standardized continuous priority tiers:
+     - LOW: $0.0 \le S \le 30.0$
+     - MEDIUM: $30.0 < S \le 60.0$
+     - HIGH: $60.0 < S \le 80.0$
+     - CRITICAL: $80.0 < S \le 100.0$
+   - Added automated tests explicitly verifying exact boundary points: $30.0$, $30.01$, $60.0$, $60.01$, $80.0$, $80.01$, and $100.0$.
+
+4. **Unknown Department Routing & Manual Review Flagging:**
+   - Resolved silent default routing to `ROADS`. Unmatched complaints with ambiguous keywords are now assigned `department_code = "PENDING_REVIEW"`, `department_name = "Pending Administrative Triage"`, with `requires_manual_review = True` and `is_fallback = True`.
+   - Updated `complaints.py` `resolve_department_id` so unmapped categories return `None` rather than falling back to `ROADS`.
+
+5. **Persistence & Data Integrity (Upsert):**
+   - Refactored `AIPipeline.persist_result` to perform idempotent upserts: if an `AIAnalysisResult` already exists for `complaint_id`, it updates the row in place rather than creating duplicate records.
+   - Persisted routing decision, severity level, calculation explanation, and formula inside `model_versions` JSON.
+   - Automatically synchronized computed severity score and priority level onto the parent `Complaint` record (`complaint.severity`, `complaint.severity_score`, `complaint.risk_level`).
+
+---
+
+### Verification and Tests Performed
+- **Automated Pytest Suite (`pytest backend/tests/ -v`):** -> **51 PASSED, 1 SKIPPED (100% passing)**
+  - `test_severity_calculation_exact` PASSED
+  - `test_severity_calculation_zero_and_max` PASSED
+  - `test_all_four_severity_factors_individually_contribute` PASSED
+  - `test_severity_continuous_boundaries` (30, 30.01, 60, 60.01, 80, 80.01, 100) PASSED
+  - `test_invalid_severity_inputs_clamped` PASSED
+  - `test_department_routing_supported_categories` (all 6 categories) PASSED
+  - `test_department_routing_by_keywords_without_category` PASSED
+  - `test_unknown_complaint_routing_requires_manual_review` PASSED
+  - `test_public_impact_factor_rule_estimation` PASSED
+  - `test_pydantic_schema_validation` PASSED
+  - `test_gemini_service_mocked_success` PASSED
+  - `test_gemini_failure_and_fallback` PASSED
+  - `test_missing_gemini_api_key_deterministic_fallback` PASSED
+  - `test_ai_result_database_persistence` PASSED
+  - `test_repeated_analysis_idempotent_upsert` PASSED
+  - `test_analyze_complaint_unauthenticated_rejected` PASSED
+  - `test_analyze_complaint_authenticated_success` PASSED
+  - `test_ai_status_endpoint` PASSED
+  - `test_live_gemini_generation` SKIPPED (isolated live test, key not in env)
+  - 33 authentication, complaint, security, and health regression tests PASSED.
+- **Frontend Production Build (`npm run build`):** -> **Built in 7.01s with 0 errors**.
+
+---
+
 ## Log Entry: 2026-11-22 – Phase 4A AI Intelligence Pipeline Foundation Completed & Verified
 
 ### Status: Phase 4A Completed & Fully Verified

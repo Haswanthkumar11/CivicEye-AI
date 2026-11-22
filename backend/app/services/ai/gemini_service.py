@@ -1,8 +1,8 @@
 import json
 import logging
 import re
+import asyncio
 from typing import Optional, Dict, Any
-import httpx
 
 from app.core.config import settings
 from app.services.ai.schemas import GeminiExtractionResult
@@ -21,8 +21,9 @@ Strictly respond with a single, valid JSON object matching this exact schema:
   "estimated_damage_level": <number between 0.0 and 100.0 representing physical severity>,
   "potential_public_risk": <number between 0.0 and 100.0 representing danger to life, injury, or public health>,
   "affected_public_groups": "<Primary impacted groups, e.g. Two-wheeler commuters, Schoolchildren, Local residents>",
-  "location_sensitivity": <number between 0.0 and 100.0 based on crowd density or traffic sensitivity hinted in text, default 50.0>,
-  "recommended_department": "ROADS | WATER | SANITATION | DRAINAGE | ELECTRICAL | PUBLIC_INFRA",
+  "estimated_public_impact": <number between 0.0 and 100.0 estimating citizen inconvenience, traffic congestion, and commuter disruption>,
+  "location_sensitivity": <number between 0.0 and 100.0 based on crowd density or proximity to schools, hospitals, transit hubs, or arterial junctions, default 50.0>,
+  "recommended_department": "ROADS | WATER | SANITATION | DRAINAGE | ELECTRICAL | PUBLIC_INFRA | PENDING_REVIEW",
   "confidence_score": <number between 0.0 and 1.0 representing model certainty>,
   "reasoning": "<Short analytical sentence explaining why this category and risk level were chosen>"
 }
@@ -33,22 +34,36 @@ Do not include markdown code block markers (like ```json), commentary, or any te
 
 class GeminiService:
     """
-    Client for Google Gemini multimodal API.
-    Handles structured prompt assembly, timeout enforcement, JSON extraction, and validation.
+    Client for Google Gemini multimodal API using the official Google GenAI Python SDK (`google-genai`).
+    Enforces timeout, structured prompt assembly, JSON extraction, and validation.
+    Avoids duplicate REST code paths and protects API keys from exposure in logs or responses.
     """
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.model_name = settings.GEMINI_MODEL or "gemini-1.5-flash"
+        self.model_name = settings.GEMINI_MODEL or "gemini-2.0-flash"
         self.enabled = getattr(settings, "AI_ANALYSIS_ENABLED", True)
+        self._client = None
 
     def is_available(self) -> bool:
         """Returns True if Gemini API key is configured and AI analysis is enabled."""
-        return bool(self.enabled and self.api_key and self.api_key.strip() and self.api_key != "your-google-gemini-api-key-here")
+        if not self.enabled or not self.api_key:
+            return False
+        cleaned = self.api_key.strip()
+        if not cleaned or cleaned == "your-google-gemini-api-key-here":
+            return False
+        return True
+
+    def _get_client(self):
+        """Lazily initializes the google-genai Client."""
+        if self._client is None and self.is_available():
+            from google import genai
+            self._client = genai.Client(api_key=self.api_key)
+        return self._client
 
     async def analyze_text(self, text: str, category_hint: Optional[str] = None) -> Optional[GeminiExtractionResult]:
         """
-        Calls Gemini API to analyze grievance text.
+        Calls Gemini API using the official google-genai SDK to analyze grievance text.
         Returns validated GeminiExtractionResult or None on failure/unavailability.
         """
         if not self.is_available():
@@ -60,46 +75,39 @@ class GeminiService:
             prompt += f"Citizen-Suggested Category: {category_hint}\n"
         prompt += "\nExtract structured civic complaint JSON now."
 
-        # Attempt 1: Using google.generativeai SDK if available
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(
-                model_name=self.model_name,
+            from google.genai import types
+
+            client = self._get_client()
+            if not client:
+                return None
+
+            config = types.GenerateContentConfig(
                 system_instruction=GEMINI_SYSTEM_PROMPT,
-                generation_config={"temperature": 0.1, "response_mime_type": "application/json"},
+                temperature=0.1,
+                response_mime_type="application/json",
             )
-            response = await model.generate_content_async(prompt)
+
+            # Strictly enforce 10-second async timeout
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=10.0,
+            )
+
             raw_text = response.text if response else ""
             parsed = self._clean_and_parse_json(raw_text)
             if parsed:
                 return GeminiExtractionResult(**parsed)
-        except Exception as sdk_err:
-            logger.warning(f"Gemini SDK generation failed, attempting REST API fallback: {sdk_err}")
 
-        # Attempt 2: Direct REST fallback via httpx (timeout: 10s)
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
-            payload = {
-                "contents": [{"parts": [{"text": f"{GEMINI_SYSTEM_PROMPT}\n\n{prompt}"}]}],
-                "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"},
-            }
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.post(url, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        if parts:
-                            raw_text = parts[0].get("text", "")
-                            parsed = self._clean_and_parse_json(raw_text)
-                            if parsed:
-                                return GeminiExtractionResult(**parsed)
-                else:
-                    logger.error(f"Gemini REST returned status {res.status_code}: {res.text[:200]}")
-        except Exception as rest_err:
-            logger.error(f"Gemini REST call encountered error: {rest_err}")
+        except asyncio.TimeoutError:
+            logger.warning(f"Gemini generation timed out after 10.0s for model {self.model_name}")
+        except Exception as err:
+            # Never expose API key in logs
+            logger.warning(f"Gemini AI generation failed with model {self.model_name}: {type(err).__name__} - {str(err)[:150]}")
 
         return None
 
@@ -116,7 +124,6 @@ class GeminiService:
         try:
             data = json.loads(text)
             if isinstance(data, dict):
-                # Normalize values
                 return self._normalize_extracted_dict(data)
         except Exception as e:
             # Try regex extraction of first {...}
@@ -134,17 +141,17 @@ class GeminiService:
     def _normalize_extracted_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Ensures all required fields exist and numbers are clamped into 0.0-100.0."""
         # Valid controlled departments
-        valid_depts = {"ROADS", "WATER", "SANITATION", "DRAINAGE", "ELECTRICAL", "PUBLIC_INFRA"}
-        dept = str(data.get("recommended_department", "ROADS")).upper().strip()
+        valid_depts = {"ROADS", "WATER", "SANITATION", "DRAINAGE", "ELECTRICAL", "PUBLIC_INFRA", "PENDING_REVIEW"}
+        dept = str(data.get("recommended_department", "PENDING_REVIEW")).upper().strip()
         if dept not in valid_depts:
-            dept = "ROADS"
+            dept = "PENDING_REVIEW"
 
         # Valid categories
         valid_cats = {
             "Road Infrastructure", "Water Supply", "Sanitation",
             "Drainage", "Electricity and Streetlights", "Public Infrastructure", "Other"
         }
-        cat = str(data.get("complaint_category", "Road Infrastructure")).strip()
+        cat = str(data.get("complaint_category", "Other")).strip()
         if cat not in valid_cats:
             cat = "Other"
 
@@ -170,6 +177,7 @@ class GeminiService:
             "estimated_damage_level": _clamp(data.get("estimated_damage_level"), 50.0),
             "potential_public_risk": _clamp(data.get("potential_public_risk"), 50.0),
             "affected_public_groups": str(data.get("affected_public_groups", "Local residents & commuters")),
+            "estimated_public_impact": _clamp(data.get("estimated_public_impact"), 50.0),
             "location_sensitivity": _clamp(data.get("location_sensitivity"), 50.0),
             "recommended_department": dept,
             "confidence_score": _clamp_unit(data.get("confidence_score"), 0.85),

@@ -21,8 +21,9 @@ class GeminiExtractionResult(BaseModel):
     estimated_damage_level: float = Field(..., ge=0.0, le=100.0, description="Estimated infrastructure damage (0-100)")
     potential_public_risk: float = Field(..., ge=0.0, le=100.0, description="Estimated safety hazard level (0-100)")
     affected_public_groups: str = Field(..., description="Key citizen groups impacted (e.g. Pedestrians, Commuters)")
+    estimated_public_impact: float = Field(default=50.0, ge=0.0, le=100.0, description="Estimated public disruption, transit impact & citizen inconvenience factor (0-100)")
     location_sensitivity: float = Field(..., ge=0.0, le=100.0, description="Estimated location criticality factor (0-100)")
-    recommended_department: str = Field(..., description="Controlled department code (e.g. ROADS, WATER, ELECTRICAL)")
+    recommended_department: str = Field(..., description="Controlled department code (e.g. ROADS, WATER, ELECTRICAL, PENDING_REVIEW)")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="AI extraction confidence (0.0 to 1.0)")
     reasoning: str = Field(..., description="Analytical justification explaining the category and risk assessment")
 
@@ -36,7 +37,7 @@ class SeverityFactorBreakdown(BaseModel):
     public_impact_factor: float = Field(..., ge=0.0, le=100.0, description="Public impact & traffic disruption (0.20 weight)")
     location_sensitivity_factor: float = Field(..., ge=0.0, le=100.0, description="Location sensitivity & proximity (0.20 weight)")
     final_score: float = Field(..., ge=0.0, le=100.0, description="Final deterministic priority score (0-100)")
-    severity_level: str = Field(..., description="LOW (0-30), MEDIUM (31-60), HIGH (61-80), CRITICAL (81-100)")
+    severity_level: str = Field(..., description="LOW (0 to 30), MEDIUM (30 < S <= 60), HIGH (60 < S <= 80), CRITICAL (80 < S <= 100)")
     formula: str = Field(
         default="0.30 * Damage + 0.30 * Risk + 0.20 * Public Impact + 0.20 * Location Sensitivity",
         description="Exact deterministic formula applied",
@@ -48,11 +49,12 @@ class DepartmentRoutingResult(BaseModel):
     """Rules-based routing assignment with audit explanation."""
     model_config = ConfigDict(from_attributes=True)
 
-    department_code: str = Field(..., description="Target department identifier: ROADS, WATER, SANITATION, DRAINAGE, ELECTRICAL, PUBLIC_INFRA")
-    department_name: str = Field(..., description="Full municipal department name")
+    department_code: str = Field(..., description="Target department identifier: ROADS, WATER, SANITATION, DRAINAGE, ELECTRICAL, PUBLIC_INFRA, or PENDING_REVIEW")
+    department_name: str = Field(..., description="Full municipal department name or Pending Administrative Triage")
     matched_rule: str = Field(..., description="Rule or keyword pattern that triggered the assignment")
     routing_explanation: str = Field(..., description="Administrative explanation for the routing decision")
-    is_fallback: bool = Field(default=False, description="True if assigned via default triage protocol")
+    is_fallback: bool = Field(default=False, description="True if assigned via fallback triage protocol")
+    requires_manual_review: bool = Field(default=False, description="True if complaint could not be routed with confidence and requires manual administrative review")
 
 
 class ComplaintAnalysisResponse(BaseModel):

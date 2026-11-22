@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     
     # External AI Services (Gemini)
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
     AI_ANALYSIS_ENABLED: bool = True
     
     # Local Computer Vision (YOLO)

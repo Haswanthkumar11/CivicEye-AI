@@ -121,13 +121,14 @@ class DepartmentRouter:
                 is_fallback=False,
             )
 
-        # Rule 3: Deterministic fallback when category is unspecified and keywords are ambiguous
-        default_code = "ROADS"
-        default_info = DEPARTMENTS[default_code]
+        # Rule 3: Deterministic fallback when category is unspecified and keywords are ambiguous.
+        # Unmatched grievances are NOT silently routed to ROADS; they are explicitly flagged
+        # for administrative manual review.
         return DepartmentRoutingResult(
-            department_code=default_code,
-            department_name=default_info["name"],
-            matched_rule="Default Triage Fallback",
-            routing_explanation="Assigned to Municipal Roads & Infrastructure under default triage protocol pending administrative verification.",
+            department_code="PENDING_REVIEW",
+            department_name="Pending Administrative Triage",
+            matched_rule="Unmatched - Requires Manual Department Review",
+            routing_explanation="Complaint could not be confidently mapped to a municipal department. Flagged for manual administrative review.",
             is_fallback=True,
+            requires_manual_review=True,
         )

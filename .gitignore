@@ -50,7 +50,11 @@ dist/
 # Model Weights & Cache (large binaries)
 models/weights/*.pt
 models/weights/*.onnx
+models/weights/
+models/inference_results/
 models/whisper_cache/
+models/
+backend/tests/fixtures/
 *.bin
 
 # Uploads & Media

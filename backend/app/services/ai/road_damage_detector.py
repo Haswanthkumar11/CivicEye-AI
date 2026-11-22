@@ -23,6 +23,7 @@ RDD_CLASSES = {
     1: {"id": "D10", "name": "Transverse Crack", "category": "crack", "base_severity": 50.0},
     2: {"id": "D20", "name": "Alligator Crack", "category": "crack", "base_severity": 70.0},
     3: {"id": "D40", "name": "Pothole", "category": "pothole", "base_severity": 85.0},
+    4: {"id": "D99", "name": "Other Road Damage", "category": "damage", "base_severity": 45.0},
 }
 
 CLASS_NAME_ALIASES = {
@@ -30,6 +31,7 @@ CLASS_NAME_ALIASES = {
     "d10": 1, "transverse crack": 1, "transverse_crack": 1,
     "d20": 2, "alligator crack": 2, "alligator_crack": 2,
     "d40": 3, "pothole": 3, "potholes": 3,
+    "d99": 4, "other": 4, "other road damage": 4,
 }
 
 

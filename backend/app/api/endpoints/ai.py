@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
+from app.models.complaint import ComplaintMedia
 from app.services.ai.schemas import (
     ComplaintAnalysisRequest,
     ComplaintAnalysisResponse,
@@ -54,6 +55,7 @@ async def detect_road_damage(
     media_url: Optional[str] = Form(None),
     confidence_threshold: Optional[float] = Form(0.35),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Executes local YOLO road damage detection on an uploaded image or an existing complaint media path:
@@ -114,6 +116,17 @@ async def detect_road_damage(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Specified media file does not exist on server.",
                 )
+
+            # Enforce complaint media ownership: if media is already attached to a complaint,
+            # verify that citizen owns the complaint or is an official/admin
+            media_record = db.query(ComplaintMedia).filter(ComplaintMedia.file_url == clean_url).first()
+            if media_record and media_record.complaint:
+                if current_user.role not in ["admin", "department_officer"]:
+                    if media_record.complaint.citizen_id != current_user.id:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Access denied: You do not have permission to analyze media from this complaint.",
+                        )
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

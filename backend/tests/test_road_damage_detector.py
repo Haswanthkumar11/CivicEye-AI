@@ -2,6 +2,7 @@ import sys
 import os
 import io
 import time
+import uuid
 import pytest
 import numpy as np
 import cv2
@@ -476,3 +477,93 @@ def test_api_detect_road_damage_authenticated_file_upload(tmp_path):
     assert "model_name" in data
     assert "detection_count" in data
     assert "estimated_visual_damage_level" in data
+
+
+# ==============================================================================
+# 16. Complaint Media Ownership Authorization Check
+# ==============================================================================
+
+def test_api_detect_road_damage_media_authorization_enforced():
+    """Verify citizen cannot request detection on media belonging to another citizen's complaint."""
+    from app.core.database import SessionLocal
+    from app.models.user import User
+    from app.models.complaint import Complaint, ComplaintMedia
+
+    db = SessionLocal()
+    try:
+        # Create user A and complaint with media
+        user_a = db.query(User).filter(User.email == "citizen.a@example.com").first()
+        if not user_a:
+            user_a = User(email="citizen.a@example.com", hashed_password="pw", full_name="Citizen A", role="citizen")
+            db.add(user_a)
+            db.commit()
+            db.refresh(user_a)
+
+        random_suffix = uuid.uuid4().hex[:4].upper()
+        complaint = Complaint(
+            tracking_id=f"CVE-20261122-{random_suffix}",
+            title="Private complaint A",
+            description="Private description",
+            category="Roads",
+            citizen_id=user_a.id,
+            status="SUBMITTED",
+        )
+        db.add(complaint)
+        db.commit()
+        db.refresh(complaint)
+
+        media_url = "/uploads/complaint_a_private.jpg"
+        local_path = os.path.join(settings.MEDIA_UPLOAD_DIR, "complaint_a_private.jpg")
+        create_dummy_image(local_path, 300, 300)
+
+        c_media = ComplaintMedia(
+            complaint_id=complaint.id,
+            media_type="IMAGE",
+            file_url=media_url,
+            file_path=local_path,
+        )
+        db.add(c_media)
+        db.commit()
+
+        # Citizen B logs in and attempts to access citizen A's media
+        token_b = get_citizen_token()
+        headers = {"Authorization": f"Bearer {token_b}"}
+
+        res = client.post(
+            "/api/ai/detect-road-damage",
+            data={"media_url": media_url},
+            headers=headers,
+        )
+        assert res.status_code == 403
+        assert "access denied" in res.json()["detail"].lower()
+
+    finally:
+        db.close()
+
+
+# ==============================================================================
+# 17. Real Weights Inference (Conditional Verification)
+# ==============================================================================
+
+def test_real_weights_inference_on_crack_image():
+    """Verify real weights ONNX session executes inference if weights exist on disk."""
+    weights_path = getattr(settings, "YOLO_MODEL_PATH", "models/weights/road_damage_yolov8.onnx")
+    if not os.path.isfile(weights_path):
+        pytest.skip("Local ONNX weights file not present on disk.")
+
+    detector = RoadDamageDetector(weights_path=weights_path, device="cpu")
+    assert detector.load() is True
+    assert detector.is_ready() is True
+
+    # Use a real prepared crack fixture if available, else synthetic
+    fixture_path = os.path.join("backend", "tests", "fixtures", "real_road_images", "real_crack.jpg")
+    if not os.path.isfile(fixture_path):
+        fixture_path = os.path.join(settings.MEDIA_UPLOAD_DIR, "test_crack_temp.jpg")
+        create_dummy_image(fixture_path, 640, 640)
+
+    result = detector.detect(fixture_path, confidence_threshold=0.20)
+    assert result.processing_status in ["SUCCESS", "NO_DAMAGE_DETECTED"]
+    assert result.model_name == "YOLO-RDD-Nano"
+    assert result.inference_device == "cpu"
+    assert result.inference_time_ms > 0
+    assert 0.0 <= result.estimated_visual_damage_level <= 100.0

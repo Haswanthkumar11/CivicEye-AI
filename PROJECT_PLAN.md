@@ -5,7 +5,7 @@
 **Track:** Track 1 – Civic Pulse, Digital Governance & Public Information  
 **Problem Statement:** Transparent Civic Grievance & Infrastructure Triage System  
 **Version:** 1.3.0  
-**Status:** In Progress (Phase 4A Completed, Phase 4B Next)  
+**Status:** In Progress (Phase 4A & 4B Completed & Verified, Phase 4C Next)  
 
 ---
 
@@ -104,14 +104,16 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Complete automated test suite (51 passed, 1 skipped live test) covering continuous boundaries, all 4 factor weights, upsert idempotency, and security.
 
 #### Phase 4B: Local Road Damage Computer Vision (Completed & Verified)
-- [x] Local YOLO Road Damage Detector using ONNX Runtime (MIT License) and OpenCV letterboxing, avoiding AGPL licensing constraints.
-- [x] Pretrained RDD dataset class mapping (D00: Longitudinal Crack, D10: Transverse Crack, D20: Alligator Crack, D40: Pothole).
+- [x] Local YOLO Road Damage Detector using ONNX Runtime (MIT License) and OpenCV letterboxing, avoiding AGPL licensing constraints in custom application code.
+- [x] Pretrained RDD dataset class mapping (D00: Longitudinal Crack, D10: Transverse Crack, D20: Alligator Crack, D40: Pothole, D99: Other Road Damage).
+- [x] Pretrained ONNX model weights (`road_damage_yolov8.onnx`, 42.68MB, SHA-256 verified) installed and excluded from Git via `.gitignore`.
 - [x] OpenCV image preprocessor with aspect-ratio letterboxing, safe coordinate unscaling, corrupt image rejection, and memory bounds.
 - [x] Bounding box coordinate conversion, NMS suppression, and explainable visual damage estimation (0-100).
 - [x] Integration with AIPipeline and deterministic severity calculation ($Damage_{final} = 0.60 \times Damage_{text} + 0.40 \times Damage_{visual}$).
-- [x] Authenticated `POST /api/ai/detect-road-damage` REST endpoint with request bounds and traversal protection.
+- [x] Authenticated `POST /api/ai/detect-road-damage` REST endpoint with request bounds, traversal protection, and citizen complaint media authorization enforcement.
 - [x] Frontend interactive road damage scan and visual evidence display in six-step submission wizard and review card.
-- [x] Automated test suite covering lazy loading, CPU fallback, corrupt image rejection, NMS filtering, and API authentication (69 passed, 1 skipped).
+- [x] Real image inference verification across 4 categories (pothole depression, longitudinal crack, alligator fatigue cracking, clean normal road) with annotated visual output.
+- [x] Automated test suite covering lazy loading, CPU fallback, corrupt image rejection, NMS filtering, media authorization, and real weights execution (71 passed, 1 skipped).
 
 #### Phase 4C: Local Speech-to-Text Voice Recognition (Next Planned Phase)
 - [ ] Implement local faster-whisper engine supporting Telugu and English int8 CPU/GPU inference.

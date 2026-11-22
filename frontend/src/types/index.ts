@@ -141,3 +141,28 @@ export interface ComplaintCreatePayload {
   media?: ComplaintMediaItem[];
   location?: ComplaintLocation;
 }
+
+export interface RoadDamageDetectionItem {
+  class_id: string;
+  class_name: string;
+  confidence: number;
+  bounding_box: number[];
+  area_pixels: number;
+  relative_area_percent: number;
+}
+
+export interface RoadDamageAnalysisResult {
+  processing_status: 'SUCCESS' | 'NO_DAMAGE_DETECTED' | 'WEIGHTS_NOT_FOUND' | 'CORRUPT_IMAGE' | 'ERROR';
+  model_name: string;
+  model_version: string;
+  inference_device: string;
+  inference_time_ms: number;
+  image_width: number;
+  image_height: number;
+  detection_count: number;
+  pothole_detected: boolean;
+  crack_detected: boolean;
+  estimated_visual_damage_level: number;
+  visual_evidence_explanation: string;
+  detections: RoadDamageDetectionItem[];
+}

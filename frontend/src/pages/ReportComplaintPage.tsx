@@ -6,7 +6,8 @@ import { MediaUploader } from '../components/complaints/MediaUploader';
 import { VoiceRecorder } from '../components/complaints/VoiceRecorder';
 import { LocationPicker } from '../components/complaints/LocationPicker';
 import { PreSubmissionReviewCard } from '../components/complaints/PreSubmissionReviewCard';
-import { ComplaintCategory, PriorityLevel, ComplaintMediaItem, ComplaintLocation } from '../types';
+import axios from 'axios';
+import { ComplaintCategory, PriorityLevel, ComplaintMediaItem, ComplaintLocation, RoadDamageAnalysisResult } from '../types';
 import {
   FileText,
   ArrowRight,
@@ -23,6 +24,8 @@ import {
   MapPin,
   Eye,
   Check,
+  Scan,
+  Loader2,
 } from 'lucide-react';
 
 const CATEGORIES: { label: ComplaintCategory; dept: string; subcategories: string[] }[] = [
@@ -100,6 +103,10 @@ export const ReportComplaintPage: React.FC = () => {
   const [submittedTrackingId, setSubmittedTrackingId] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
 
+  // Local YOLO Road Damage AI State (Phase 4B)
+  const [roadDamageResult, setRoadDamageResult] = useState<RoadDamageAnalysisResult | null>(null);
+  const [scanningRoadDamage, setScanningRoadDamage] = useState<boolean>(false);
+
   // Compute deterministic severity score
   const computedSeverityScore = Math.round(
     0.30 * damageScore +
@@ -118,6 +125,36 @@ export const ReportComplaintPage: React.FC = () => {
   const currentPriority = getPriorityLevel(computedSeverityScore);
   const selectedCategoryObj = CATEGORIES.find((c) => c.label === category) || CATEGORIES[0];
 
+  const triggerRoadDamageScan = async (url?: string) => {
+    const targetUrl = url || mediaList.find((m) => m.media_type === 'IMAGE')?.file_url;
+    if (!targetUrl) return;
+
+    setScanningRoadDamage(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('media_url', targetUrl);
+      formData.append('confidence_threshold', '0.35');
+
+      const res = await axios.post<RoadDamageAnalysisResult>('/api/ai/detect-road-damage', formData, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (res.data) {
+        setRoadDamageResult(res.data);
+        if (res.data.processing_status === 'SUCCESS' && res.data.detection_count > 0) {
+          setDamageScore(Math.round(res.data.estimated_visual_damage_level));
+        }
+      }
+    } catch (err) {
+      console.warn('Road damage detection scan skipped or offline:', err);
+    } finally {
+      setScanningRoadDamage(false);
+    }
+  };
+
   const handleCategoryChange = (cat: ComplaintCategory) => {
     setCategory(cat);
     const catObj = CATEGORIES.find((c) => c.label === cat);
@@ -128,10 +165,19 @@ export const ReportComplaintPage: React.FC = () => {
 
   const handleMediaAdded = (item: ComplaintMediaItem) => {
     setMediaList((prev) => [...prev, item]);
+    if (category === 'Road Infrastructure' && item.media_type === 'IMAGE') {
+      triggerRoadDamageScan(item.file_url);
+    }
   };
 
   const handleMediaRemoved = (index: number) => {
-    setMediaList((prev) => prev.filter((_, i) => i !== index));
+    setMediaList((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (updated.filter((m) => m.media_type === 'IMAGE').length === 0) {
+        setRoadDamageResult(null);
+      }
+      return updated;
+    });
   };
 
   const handleAudioUploaded = (item: ComplaintMediaItem) => {
@@ -387,6 +433,56 @@ export const ReportComplaintPage: React.FC = () => {
             onMediaRemoved={handleMediaRemoved}
           />
 
+          {/* Local YOLO Road Damage Computer Vision Trigger (Phase 4B) */}
+          {category === 'Road Infrastructure' && mediaList.some((m) => m.media_type === 'IMAGE') && (
+            <div className="p-4 rounded-xl bg-slate-950 border border-cyan-500/30 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs">
+                  <Scan className="w-4 h-4" />
+                  <span>Local Road Damage Computer Vision (YOLO)</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={scanningRoadDamage}
+                  onClick={() => triggerRoadDamageScan()}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all w-fit"
+                >
+                  {scanningRoadDamage ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Scanning Evidence...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Scan className="w-3.5 h-3.5" />
+                      <span>{roadDamageResult ? 'Re-scan Evidence' : 'Scan for Potholes & Cracks'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {roadDamageResult ? (
+                <div className="text-xs space-y-1.5 pt-1 border-t border-slate-900">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                      {roadDamageResult.model_name} • {roadDamageResult.inference_device} ({roadDamageResult.inference_time_ms}ms)
+                    </span>
+                    <span className="text-slate-400 text-[11px]">
+                      {roadDamageResult.detection_count} defect(s) detected
+                    </span>
+                  </div>
+                  <p className="text-slate-300 text-[11px]">
+                    {roadDamageResult.visual_evidence_explanation}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  Click to inspect uploaded road photos locally using YOLO computer vision. Detected potholes and surface cracks will automatically modulate physical severity.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               type="button"
@@ -544,6 +640,7 @@ export const ReportComplaintPage: React.FC = () => {
             departmentName={selectedCategoryObj.dept}
             address={location.address}
             mediaList={audioItem ? [...mediaList, audioItem] : mediaList}
+            roadDamageResult={roadDamageResult}
           />
 
           {/* Explainable Severity Factor Controls */}

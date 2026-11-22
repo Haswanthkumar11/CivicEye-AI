@@ -14,6 +14,13 @@ from app.services.ai.model_registry import (
     IRoadDamageDetector,
     IVoiceTranscriber,
 )
+from app.services.ai.detection_schemas import (
+    RoadDamageDetection,
+    RoadDamageAnalysisResult,
+    RoadDamageDetectionRequest,
+)
+from app.services.ai.image_preprocessor import ImagePreprocessor
+from app.services.ai.road_damage_detector import RoadDamageDetector
 from app.services.ai.ai_pipeline import AIPipeline
 
 __all__ = [
@@ -29,5 +36,10 @@ __all__ = [
     "ModelRegistry",
     "IRoadDamageDetector",
     "IVoiceTranscriber",
+    "RoadDamageDetection",
+    "RoadDamageAnalysisResult",
+    "RoadDamageDetectionRequest",
+    "ImagePreprocessor",
+    "RoadDamageDetector",
     "AIPipeline",
 ]

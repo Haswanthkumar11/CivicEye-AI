@@ -103,11 +103,17 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Database persistence with idempotent upsert preventing duplicate analysis records and synchronizing severity onto parent complaint.
 - [x] Complete automated test suite (51 passed, 1 skipped live test) covering continuous boundaries, all 4 factor weights, upsert idempotency, and security.
 
-#### Phase 4B: Local Road Damage Computer Vision (Next Planned Phase)
-- [ ] Implement local YOLO road damage detector with OpenCV preprocessing.
-- [ ] Connect detected classes, confidence, and bounding boxes to AI pipeline.
+#### Phase 4B: Local Road Damage Computer Vision (Completed & Verified)
+- [x] Local YOLO Road Damage Detector using ONNX Runtime (MIT License) and OpenCV letterboxing, avoiding AGPL licensing constraints.
+- [x] Pretrained RDD dataset class mapping (D00: Longitudinal Crack, D10: Transverse Crack, D20: Alligator Crack, D40: Pothole).
+- [x] OpenCV image preprocessor with aspect-ratio letterboxing, safe coordinate unscaling, corrupt image rejection, and memory bounds.
+- [x] Bounding box coordinate conversion, NMS suppression, and explainable visual damage estimation (0-100).
+- [x] Integration with AIPipeline and deterministic severity calculation ($Damage_{final} = 0.60 \times Damage_{text} + 0.40 \times Damage_{visual}$).
+- [x] Authenticated `POST /api/ai/detect-road-damage` REST endpoint with request bounds and traversal protection.
+- [x] Frontend interactive road damage scan and visual evidence display in six-step submission wizard and review card.
+- [x] Automated test suite covering lazy loading, CPU fallback, corrupt image rejection, NMS filtering, and API authentication (69 passed, 1 skipped).
 
-#### Phase 4C: Local Speech-to-Text Voice Recognition
+#### Phase 4C: Local Speech-to-Text Voice Recognition (Next Planned Phase)
 - [ ] Implement local faster-whisper engine supporting Telugu and English int8 CPU/GPU inference.
 - [ ] Pipe speech transcript directly into the multimodal triage pipeline.
 

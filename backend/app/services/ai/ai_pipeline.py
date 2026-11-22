@@ -1,6 +1,7 @@
+import os
 import time
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,6 +14,7 @@ from app.services.ai.gemini_service import GeminiService
 from app.services.ai.complaint_extractor import ComplaintExtractor
 from app.services.ai.severity_engine import SeverityEngine
 from app.services.ai.department_router import DepartmentRouter
+from app.services.ai.model_registry import ModelRegistry, IRoadDamageDetector
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +22,27 @@ logger = logging.getLogger(__name__)
 class AIPipeline:
     """
     Central orchestration pipeline for CivicEye AI grievance intelligence.
-    Extracts structured complaints, scores priority deterministically, and routes to departments.
+    Extracts structured complaints, scores priority deterministically,
+    integrates local computer vision road damage evidence, and routes to departments.
     """
 
     def __init__(
         self,
         gemini_service: Optional[GeminiService] = None,
         extractor: Optional[ComplaintExtractor] = None,
+        cv_detector: Optional[IRoadDamageDetector] = None,
     ):
         self.gemini = gemini_service or GeminiService()
         self.extractor = extractor or ComplaintExtractor(gemini_service=self.gemini)
+        self.cv_detector = cv_detector
 
     async def analyze(self, request: ComplaintAnalysisRequest) -> ComplaintAnalysisResponse:
         """
         Executes end-to-end multimodal grievance analysis:
         1. Linguistic/multimodal extraction (Gemini or deterministic rule fallback).
-        2. Deterministic priority & severity calculation via mathematical formula.
-        3. Explainable rules-based municipal department routing.
+        2. Local Road Damage computer vision (YOLO) on image evidence, if present.
+        3. Deterministic priority & severity calculation via mathematical formula.
+        4. Explainable rules-based municipal department routing.
         """
         start_time = time.perf_counter()
 
@@ -55,16 +61,55 @@ class AIPipeline:
         if is_fallback and status != "DISABLED":
             status = "FALLBACK"
 
-        # Step 2: Deterministic Severity Calculation (Python mathematical formula)
+        # Step 2: Visual Road Damage Analysis (Local YOLO)
+        yolo_dict: Optional[Dict[str, Any]] = None
+        visual_damage_score: Optional[float] = None
+        visual_note: Optional[str] = None
+
+        is_road_defect = (
+            (request.category_hint and "road" in request.category_hint.lower())
+            or (extraction.complaint_category and "road" in extraction.complaint_category.lower())
+            or any(kw in request.text.lower() for kw in ["pothole", "crater", "crack", "asphalt", "road", "cavity"])
+        )
+
+        if is_road_defect and request.media_urls:
+            for url in request.media_urls:
+                clean_url = (url or "").replace("\\", "/")
+                # Defensive check: ensure path is inside /uploads/ without traversal
+                if clean_url.startswith("/uploads/") and ".." not in clean_url:
+                    fname = os.path.basename(clean_url)
+                    local_img_path = os.path.join(settings.MEDIA_UPLOAD_DIR, fname)
+                    if os.path.isfile(local_img_path):
+                        try:
+                            detector = self.cv_detector or ModelRegistry.get_cv_detector()
+                            cv_result = detector.detect(local_img_path)
+                            yolo_dict = cv_result.model_dump()
+                            if cv_result.processing_status == "SUCCESS" and cv_result.detection_count > 0:
+                                visual_damage_score = cv_result.estimated_visual_damage_level
+                                visual_note = cv_result.visual_evidence_explanation
+                            break
+                        except Exception as e:
+                            logger.warning(f"Local YOLO analysis error on '{local_img_path}': {e}")
+
+        # Step 3: Deterministic Severity Calculation (Python mathematical formula)
         # S = 0.30*Damage + 0.30*Risk + 0.20*Impact + 0.20*Sensitivity
+        if visual_damage_score is not None:
+            # Fuse linguistic damage with visual computer vision evidence: 60% text, 40% visual
+            combined_damage = round(0.60 * extraction.estimated_damage_level + 0.40 * visual_damage_score, 2)
+        else:
+            combined_damage = extraction.estimated_damage_level
+
         severity = SeverityEngine.calculate(
-            damage_factor=extraction.estimated_damage_level,
+            damage_factor=combined_damage,
             risk_factor=extraction.potential_public_risk,
             public_impact_factor=extraction.estimated_public_impact,
             location_sensitivity_factor=extraction.location_sensitivity,
         )
 
-        # Step 3: Rules-Based Department Routing
+        if visual_note:
+            severity.calculation_explanation += f" [{visual_note}]"
+
+        # Step 4: Rules-Based Department Routing
         routing = DepartmentRouter.route(
             category=extraction.complaint_category,
             issue_type=extraction.issue_type,
@@ -79,6 +124,7 @@ class AIPipeline:
             extraction=extraction,
             severity=severity,
             routing=routing,
+            yolo_analysis=yolo_dict,
             model_version=model_version,
             processing_time_ms=elapsed_ms,
         )
@@ -108,6 +154,7 @@ class AIPipeline:
         existing = db.query(AIAnalysisResult).filter(AIAnalysisResult.complaint_id == complaint_id).first()
         if existing:
             existing.language_detected = "en"
+            existing.yolo_detections = analysis.yolo_analysis
             existing.gemini_analysis = analysis.extraction.model_dump()
             existing.damage_score = analysis.severity.damage_factor
             existing.risk_score = analysis.severity.risk_factor
@@ -121,7 +168,7 @@ class AIPipeline:
                 complaint_id=complaint_id,
                 language_detected="en",
                 transcription_text=None,
-                yolo_detections=None,
+                yolo_detections=analysis.yolo_analysis,
                 gemini_analysis=analysis.extraction.model_dump(),
                 damage_score=analysis.severity.damage_factor,
                 risk_score=analysis.severity.risk_factor,
@@ -131,6 +178,17 @@ class AIPipeline:
                 model_versions=metadata_payload,
             )
             db.add(record)
+
+        # Synchronize computed priority score back onto the parent complaint record
+        complaint = db.query(Complaint).filter(Complaint.id == complaint_id).first()
+        if complaint:
+            complaint.severity = analysis.severity.severity_level
+            complaint.severity_score = analysis.severity.final_score
+            complaint.risk_level = analysis.severity.severity_level
+
+        db.commit()
+        db.refresh(record)
+        return record
 
         # Synchronize computed priority score back onto the parent complaint record
         complaint = db.query(Complaint).filter(Complaint.id == complaint_id).first()

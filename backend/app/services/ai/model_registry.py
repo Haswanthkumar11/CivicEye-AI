@@ -118,11 +118,14 @@ class ModelRegistry:
     enforces lazy loading, sequential execution, and manual memory reclamation.
     """
 
-    _cv_detector: IRoadDamageDetector = MockRoadDamageDetector()
+    _cv_detector: Optional[IRoadDamageDetector] = None
     _stt_transcriber: IVoiceTranscriber = MockVoiceTranscriber()
 
     @classmethod
     def get_cv_detector(cls) -> IRoadDamageDetector:
+        if cls._cv_detector is None:
+            from app.services.ai.road_damage_detector import RoadDamageDetector
+            cls._cv_detector = RoadDamageDetector()
         return cls._cv_detector
 
     @classmethod
@@ -139,8 +142,14 @@ class ModelRegistry:
 
     @classmethod
     def get_status(cls) -> Dict[str, Any]:
+        detector = cls.get_cv_detector()
+        weights_path = getattr(detector, "weights_path", "models/weights/road_damage_yolov8.onnx")
+        import os
         return {
-            "cv_detector_ready": cls._cv_detector.is_ready(),
+            "cv_detector_ready": detector.is_ready(),
+            "cv_detector_device": getattr(detector, "device", "cpu"),
+            "cv_weights_path": weights_path,
+            "cv_weights_exist": os.path.isfile(weights_path),
             "stt_transcriber_ready": cls._stt_transcriber.is_ready(),
             "target_hardware": {
                 "gpu": "NVIDIA GeForce GTX 1650 (4GB VRAM)",

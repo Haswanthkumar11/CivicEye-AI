@@ -65,5 +65,6 @@ class ComplaintAnalysisResponse(BaseModel):
     extraction: GeminiExtractionResult
     severity: SeverityFactorBreakdown
     routing: DepartmentRoutingResult
+    yolo_analysis: Optional[Dict[str, Any]] = Field(default=None, description="Optional local road damage computer vision analysis")
     model_version: str = Field(default="gemini-3.8-flash", description="AI model / engine version tag")
     processing_time_ms: Optional[float] = Field(None, description="Pipeline latency in milliseconds")

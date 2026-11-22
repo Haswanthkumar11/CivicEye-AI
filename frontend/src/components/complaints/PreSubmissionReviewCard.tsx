@@ -1,6 +1,6 @@
 import React from 'react';
-import { Sparkles, Building2, ShieldAlert, MapPin, CheckCircle2 } from 'lucide-react';
-import { ComplaintCategory, PriorityLevel, ComplaintMediaItem } from '../../types';
+import { Sparkles, Building2, ShieldAlert, MapPin, CheckCircle2, Scan, AlertTriangle, Check } from 'lucide-react';
+import { ComplaintCategory, PriorityLevel, ComplaintMediaItem, RoadDamageAnalysisResult } from '../../types';
 
 interface PreSubmissionReviewCardProps {
   title: string;
@@ -11,6 +11,7 @@ interface PreSubmissionReviewCardProps {
   departmentName: string;
   address?: string;
   mediaList: ComplaintMediaItem[];
+  roadDamageResult?: RoadDamageAnalysisResult | null;
 }
 
 export const PreSubmissionReviewCard: React.FC<PreSubmissionReviewCardProps> = ({
@@ -22,6 +23,7 @@ export const PreSubmissionReviewCard: React.FC<PreSubmissionReviewCardProps> = (
   departmentName,
   address,
   mediaList,
+  roadDamageResult,
 }) => {
   const getBadgeStyle = (p: PriorityLevel) => {
     switch (p) {
@@ -104,6 +106,49 @@ export const PreSubmissionReviewCard: React.FC<PreSubmissionReviewCardProps> = (
             </div>
           </div>
         </div>
+
+        {/* Visual Road Damage AI Detection Evidence (Phase 4B) */}
+        {roadDamageResult && (
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-cyan-500/30 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                <Scan className="w-3.5 h-3.5" />
+                <span>Local YOLO Road Damage Evidence</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                {roadDamageResult.model_name} • {roadDamageResult.inference_device} ({roadDamageResult.inference_time_ms}ms)
+              </span>
+            </div>
+
+            {roadDamageResult.processing_status === 'SUCCESS' && roadDamageResult.detection_count > 0 ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {roadDamageResult.detections.map((det, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono bg-cyan-950/60 text-cyan-300 border border-cyan-700/50"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                      <strong>{det.class_name}</strong> ({(det.confidence * 100).toFixed(1)}% conf • {det.relative_area_percent}% area)
+                    </span>
+                  ))}
+                </div>
+                <div className="text-[11px] text-slate-300 bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                  {roadDamageResult.visual_evidence_explanation}
+                </div>
+              </div>
+            ) : roadDamageResult.processing_status === 'NO_DAMAGE_DETECTED' ? (
+              <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-950/20 p-2 rounded-lg border border-emerald-900/40">
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span>Inspection completed: No road surface cavities or structural cracks detected above confidence threshold.</span>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                {roadDamageResult.visual_evidence_explanation}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Location & Media summary */}
         <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">

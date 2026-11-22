@@ -41,7 +41,7 @@ class GeminiService:
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.model_name = settings.GEMINI_MODEL or "gemini-2.0-flash"
+        self.model_name = settings.GEMINI_MODEL or "gemini-3.8-flash"
         self.enabled = getattr(settings, "AI_ANALYSIS_ENABLED", True)
         self._client = None
 

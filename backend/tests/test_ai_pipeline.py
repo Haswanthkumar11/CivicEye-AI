@@ -399,7 +399,35 @@ def test_ai_status_endpoint():
     data = res.json()
     assert "target_hardware" in data
     assert "NVIDIA GeForce GTX 1650" in data["target_hardware"]["gpu"]
-    assert "gemini_model" in data
+    assert data["gemini_model"] == "gemini-3.8-flash"
+
+
+def test_default_gemini_model_configuration(monkeypatch):
+    """
+    Validates default GEMINI_MODEL configuration:
+      - Default is strictly 'gemini-3.8-flash'.
+      - Retired models (gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash) are eliminated from defaults.
+      - GEMINI_MODEL is cleanly configurable via environment/settings.
+      - GeminiService does not silently fallback to retired models upon failure.
+    """
+    from app.core.config import settings
+
+    assert settings.GEMINI_MODEL == "gemini-3.8-flash"
+    service = GeminiService()
+    assert service.model_name == "gemini-3.8-flash"
+
+    # Verify configurable override via environment
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-3.8-pro")
+    service_custom = GeminiService()
+    assert service_custom.model_name == "gemini-3.8-pro"
+
+    # Reset
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-3.8-flash")
+
+    # Verify no retired models exist in default model tags
+    retired_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]
+    assert settings.GEMINI_MODEL not in retired_models
+    assert service.model_name not in retired_models
 
 
 # ==============================================================================

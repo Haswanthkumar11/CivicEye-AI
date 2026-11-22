@@ -65,5 +65,5 @@ class ComplaintAnalysisResponse(BaseModel):
     extraction: GeminiExtractionResult
     severity: SeverityFactorBreakdown
     routing: DepartmentRoutingResult
-    model_version: str = Field(default="gemini-1.5-flash", description="AI model / engine version tag")
+    model_version: str = Field(default="gemini-3.8-flash", description="AI model / engine version tag")
     processing_time_ms: Optional[float] = Field(None, description="Pipeline latency in milliseconds")

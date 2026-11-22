@@ -95,7 +95,7 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 ### Phase 4: Multimodal AI Intelligence Pipeline
 #### Phase 4A: AI Intelligence Pipeline Foundation (Completed & Verified)
 - [x] Modular AI service architecture (`backend/app/services/ai/`).
-- [x] Gemini API service using official `google-genai` SDK with 10s async timeout, structured JSON prompts, and configurable Flash model (`gemini-2.0-flash`).
+- [x] Gemini API service using official `google-genai` SDK with 10s async timeout, structured JSON prompts, and configurable Flash model (`gemini-3.8-flash`).
 - [x] Deterministic priority scoring engine ($S = 0.30 \times \text{Damage} + 0.30 \times \text{Risk} + 0.20 \times \text{Public Impact} + 0.20 \times \text{Location Sensitivity}$) with dedicated public impact factor and continuous boundaries (LOW 0-30, MEDIUM 30-60, HIGH 60-80, CRITICAL 80-100).
 - [x] Rules-based municipal department routing with explainable decision trace and explicit manual review flagging for unmapped complaints (`PENDING_REVIEW`).
 - [x] Modular `ModelRegistry` and abstract interfaces (`IRoadDamageDetector`, `IVoiceTranscriber`) tailored for GTX 1650 (4GB VRAM) and 7.68GB RAM constraints.

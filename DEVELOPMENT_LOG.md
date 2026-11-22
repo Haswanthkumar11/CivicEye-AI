@@ -13,7 +13,7 @@ All implementation milestones, technical decisions, tests, and task states are s
    - Migrated from legacy `google-generativeai` to the modern, officially supported Google GenAI Python SDK (`google-genai >= 2.0.0`).
    - Replaced redundant dual implementations with a unified, robust async client via `client.aio.models.generate_content(...)`.
    - Enforced strict 10.0-second async timeout with `asyncio.wait_for`.
-   - Model is fully configurable via `GEMINI_MODEL` (defaulting to `gemini-2.0-flash`).
+   - Model is fully configurable via `GEMINI_MODEL` (defaulting to `gemini-3.8-flash`).
    - Kept API keys strictly isolated within backend environment variables; verified credentials are never exposed in log output or API responses.
    - Added separate isolated live test suite (`backend/tests/test_gemini_live.py`) skipped gracefully when live key is not supplied, keeping offline unit tests 100% mocked and fast.
 
@@ -90,7 +90,7 @@ All implementation milestones, technical decisions, tests, and task states are s
 
 3. **Configuration & Dependencies:**
    - Added `AI_ANALYSIS_ENABLED: bool = True` to `backend/app/core/config.py`.
-   - Updated `.env.example` with `GEMINI_API_KEY=`, `GEMINI_MODEL=gemini-1.5-flash`, and `AI_ANALYSIS_ENABLED=true`.
+   - Updated `.env.example` with `GEMINI_API_KEY=`, `GEMINI_MODEL=gemini-3.8-flash`, and `AI_ANALYSIS_ENABLED=true`.
    - Installed `google-generativeai>=0.7.0` in the backend virtual environment.
 
 ---

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, auth, complaints
+from app.api.endpoints import health, auth, complaints, ai
 
 api_router = APIRouter()
 
@@ -11,3 +11,6 @@ api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & U
 
 # Complaints & Citizen Grievances
 api_router.include_router(complaints.router, prefix="/complaints", tags=["Complaints & Grievances"])
+
+# AI Grievance Intelligence
+api_router.include_router(ai.router, prefix="/ai", tags=["AI Grievance Intelligence"])

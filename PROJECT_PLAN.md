@@ -4,8 +4,8 @@
 **Tagline:** Report it. Understand it. Resolve it. Track it.  
 **Track:** Track 1 – Civic Pulse, Digital Governance & Public Information  
 **Problem Statement:** Transparent Civic Grievance & Infrastructure Triage System  
-**Version:** 1.2.0  
-**Status:** In Progress (Phase 3 Completed, Phase 4 Next)  
+**Version:** 1.3.0  
+**Status:** In Progress (Phase 4A Completed, Phase 4B Next)  
 
 ---
 
@@ -93,12 +93,22 @@ CivicEye AI is a multimodal AI-powered civic intelligence platform engineered to
 - [x] Implement citizen dashboard with live complaint tracking and status history.
 
 ### Phase 4: Multimodal AI Intelligence Pipeline
-- [ ] Implement Gemini service for multilingual understanding, Telugu/English triage, and structured extraction.
-- [ ] Implement modular local YOLO road damage detector with OpenCV preprocessing.
-- [ ] Implement modular local faster-whisper speech transcription for Telugu and English audio notes.
-- [ ] Implement deterministic priority scoring engine:  
-  $$\text{Score} = 0.30 \times \text{Damage} + 0.30 \times \text{Risk} + 0.20 \times \text{Public Impact} + 0.20 \times \text{Location Sensitivity}$$
-- [ ] Implement rules-based department routing with administrative override capabilities.
+#### Phase 4A: AI Intelligence Pipeline Foundation (Completed)
+- [x] Modular AI service architecture (`backend/app/services/ai/`).
+- [x] Gemini API service with timeout handling, structured prompts, JSON parsing, and fallback paths.
+- [x] Deterministic priority scoring engine ($S = 0.30 \times \text{Damage} + 0.30 \times \text{Risk} + 0.20 \times \text{Public Impact} + 0.20 \times \text{Location Sensitivity}$).
+- [x] Rules-based municipal department routing with explainable decision trace.
+- [x] Modular `ModelRegistry` and abstract interfaces (`IRoadDamageDetector`, `IVoiceTranscriber`) tailored for GTX 1650 (4GB VRAM) and 7.68GB RAM constraints.
+- [x] Authenticated `/api/ai/analyze-complaint` and `/api/ai/status` REST endpoints.
+- [x] Complete automated test suite (48 passing tests) covering boundaries, fallbacks, and security.
+
+#### Phase 4B: Local Road Damage Computer Vision (Next)
+- [ ] Implement local YOLO road damage detector with OpenCV preprocessing.
+- [ ] Connect detected classes, confidence, and bounding boxes to AI pipeline.
+
+#### Phase 4C: Local Speech-to-Text Voice Recognition
+- [ ] Implement local faster-whisper engine supporting Telugu and English int8 CPU/GPU inference.
+- [ ] Pipe speech transcript directly into the multimodal triage pipeline.
 
 ### Phase 5: Duplicate Detection & Civic Hotspot Intelligence
 - [ ] Implement geospatial proximity indexing (PostGIS / Haversine distance thresholding).

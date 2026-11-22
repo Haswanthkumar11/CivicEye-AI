@@ -82,7 +82,9 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 from app.api.endpoints.health import health_check
 from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.complaints import router as complaints_router
+from app.api.endpoints.ai import router as ai_router
 
 app.add_api_route("/api/health", health_check, methods=["GET"], tags=["Health & Diagnostics"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication & User Management"])
 app.include_router(complaints_router, prefix="/api/complaints", tags=["Complaints & Grievances"])
+app.include_router(ai_router, prefix="/api/ai", tags=["AI Grievance Intelligence"])

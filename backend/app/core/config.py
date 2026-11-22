@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     # External AI Services (Gemini)
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-flash"
+    AI_ANALYSIS_ENABLED: bool = True
     
     # Local Computer Vision (YOLO)
     YOLO_MODEL_PATH: str = "models/weights/road_damage_yolov8.pt"

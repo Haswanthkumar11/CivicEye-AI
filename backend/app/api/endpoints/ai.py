@@ -104,13 +104,17 @@ async def detect_road_damage(
 
         elif media_url:
             clean_url = media_url.strip().replace("\\", "/")
-            if not clean_url.startswith("/uploads/") or ".." in clean_url:
+            is_local = clean_url.startswith("/uploads/")
+            is_supabase = bool(settings.SUPABASE_URL and clean_url.startswith(settings.SUPABASE_URL))
+            if not (is_local or is_supabase) or ".." in clean_url:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid media URL: only internal /uploads/ paths are accepted.",
+                    detail="Invalid media URL: only internal /uploads/ paths or authorized Supabase Storage URLs are accepted.",
                 )
-            safe_fname = os.path.basename(clean_url)
-            target_path = os.path.join(settings.MEDIA_UPLOAD_DIR, safe_fname)
+            from app.services.media_storage import media_storage_service
+            safe_fname = os.path.basename(clean_url.split("?")[0])
+            local_candidate = media_storage_service.ensure_local_copy(clean_url)
+            target_path = local_candidate or os.path.join(settings.MEDIA_UPLOAD_DIR, safe_fname)
             if not os.path.isfile(target_path):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,

@@ -54,7 +54,7 @@ def test_media_upload():
     data = res.json()
     assert "file_url" in data
     assert data["media_type"] == "IMAGE"
-    assert data["file_url"].startswith("/uploads/")
+    assert data["file_url"].startswith("/uploads/") or data["file_url"].startswith("http")
 
 
 def test_media_upload_unauthenticated_rejected():
@@ -93,7 +93,7 @@ def test_media_upload_path_traversal_sanitized():
     assert res.status_code == 200
     data = res.json()
     assert ".." not in data["file_url"]
-    assert data["file_url"].startswith("/uploads/")
+    assert data["file_url"].startswith("/uploads/") or data["file_url"].startswith("http")
     assert data["file_name"] == "safe_traversal.png"
 
 

@@ -18,7 +18,7 @@ import {
   Sparkles,
   UserCheck,
 } from 'lucide-react';
-import { checkSystemHealth } from '../api/client';
+import { checkSystemHealth, getDocsUrl } from '../api/client';
 import { SystemHealth } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -806,7 +806,7 @@ export const LandingPage: React.FC = () => {
                   </div>
                   <div className="pt-1">
                     <a
-                      href="http://localhost:8000/docs"
+                      href={getDocsUrl()}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs text-blue-400 hover:underline flex items-center gap-1"
@@ -823,7 +823,7 @@ export const LandingPage: React.FC = () => {
               <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
               <p className="text-sm font-semibold text-white">Backend Health Check Notice</p>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                {healthError || 'Connecting to http://localhost:8000/api/health...'}
+                {healthError || 'Connecting to CivicEye API service...'}
               </p>
             </div>
           )}

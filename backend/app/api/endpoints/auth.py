@@ -35,8 +35,9 @@ async def register(user_in: UserRegisterRequest, db: Session = Depends(get_db)):
             detail="A user with this email address already exists.",
         )
 
-    # Restrict admin self-registration if necessary, or allow designated role
-    role = "admin" if user_in.role == "admin" else "citizen"
+    # Security: Public registration must unconditionally create CITIZEN accounts.
+    # Administrative and officer accounts can never be self-assigned through public registration.
+    role = "citizen"
 
     user = User(
         email=user_in.email,

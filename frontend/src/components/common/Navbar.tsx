@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Eye, ExternalLink, User as UserIcon, LogOut, Shield, Sparkles, Plus, Search, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getDocsUrl } from '../../api/client';
 
 interface NavbarProps {
   backendOnline: boolean;
@@ -133,7 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({ backendOnline }) => {
 
           {/* API Docs Link */}
           <a
-            href="http://localhost:8000/docs"
+            href={getDocsUrl()}
             target="_blank"
             rel="noreferrer"
             className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors border border-slate-800"

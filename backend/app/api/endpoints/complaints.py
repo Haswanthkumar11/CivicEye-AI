@@ -184,16 +184,18 @@ async def upload_media(
             detail="Invalid destination path detected.",
         )
 
-    # Write securely to disk
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
-    relative_url = f"/uploads/{stored_filename}"
+    # Persist via MediaStorageService (local disk + Supabase Storage)
+    from app.services.media_storage import media_storage_service
+    storage_res = media_storage_service.store_file(
+        contents=contents,
+        stored_filename=stored_filename,
+        mime_type=file.content_type or media_info["mime"][0],
+    )
 
     return {
-        "file_url": relative_url,
+        "file_url": storage_res["file_url"],
         "file_name": clean_basename,
-        "file_path": file_path,
+        "file_path": storage_res["file_path"],
         "file_size": total_bytes,
         "mime_type": file.content_type or media_info["mime"][0],
         "media_type": media_type,
@@ -255,11 +257,13 @@ async def create_complaint(
     # Attach Media items with strict validation
     if payload.media:
         for media_item in payload.media:
-            # Defensive check: ensure file_url is strictly internal to /uploads/
-            if not media_item.file_url or not media_item.file_url.startswith("/uploads/"):
+            # Defensive check: ensure file_url is strictly internal to /uploads/ or authorized Supabase Storage
+            is_local = bool(media_item.file_url and media_item.file_url.startswith("/uploads/"))
+            is_supabase = bool(settings.SUPABASE_URL and media_item.file_url and media_item.file_url.startswith(settings.SUPABASE_URL))
+            if not (is_local or is_supabase):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid media URL: only internal /uploads/ paths are accepted.",
+                    detail="Invalid media URL: only internal /uploads/ paths are accepted (or configured Supabase Storage URLs).",
                 )
             if ".." in media_item.file_url or "\\" in media_item.file_url:
                 raise HTTPException(
@@ -273,7 +277,7 @@ async def create_complaint(
                 )
 
             # Defensive canonical path computation
-            safe_fname = os.path.basename(media_item.file_url)
+            safe_fname = os.path.basename(media_item.file_url.split("?")[0])
             canonical_path = os.path.join(settings.MEDIA_UPLOAD_DIR, safe_fname)
 
             cm = ComplaintMedia(

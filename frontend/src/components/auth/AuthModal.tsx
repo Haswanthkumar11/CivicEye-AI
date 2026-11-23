@@ -10,7 +10,6 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [role, setRole] = useState<'citizen' | 'admin'>('citizen');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +44,7 @@ export const AuthModal: React.FC = () => {
         password,
         full_name: fullName,
         phone_number: phoneNumber || undefined,
-        role,
+        role: 'citizen',
       });
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed. Please verify the input.');
@@ -230,30 +229,6 @@ export const AuthModal: React.FC = () => {
                   placeholder="••••••••"
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                 />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-slate-300 font-medium">Account Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRole('citizen')}
-                  className={`py-2 rounded-lg border text-center font-medium ${
-                    role === 'citizen' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-950 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  Citizen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`py-2 rounded-lg border text-center font-medium ${
-                    role === 'admin' ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300' : 'bg-slate-950 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  Admin / Officer
-                </button>
               </div>
             </div>
 

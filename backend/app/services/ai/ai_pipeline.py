@@ -73,13 +73,15 @@ class AIPipeline:
         )
 
         if is_road_defect and request.media_urls:
+            from app.services.media_storage import media_storage_service
             for url in request.media_urls:
                 clean_url = (url or "").replace("\\", "/")
-                # Defensive check: ensure path is inside /uploads/ without traversal
-                if clean_url.startswith("/uploads/") and ".." not in clean_url:
-                    fname = os.path.basename(clean_url)
-                    local_img_path = os.path.join(settings.MEDIA_UPLOAD_DIR, fname)
-                    if os.path.isfile(local_img_path):
+                is_local = clean_url.startswith("/uploads/")
+                is_supabase = bool(settings.SUPABASE_URL and clean_url.startswith(settings.SUPABASE_URL))
+                # Defensive check: ensure path is inside /uploads/ or Supabase Storage without traversal
+                if (is_local or is_supabase) and ".." not in clean_url:
+                    local_img_path = media_storage_service.ensure_local_copy(clean_url)
+                    if local_img_path and os.path.isfile(local_img_path):
                         try:
                             detector = self.cv_detector or ModelRegistry.get_cv_detector()
                             cv_result = detector.detect(local_img_path)

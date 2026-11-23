@@ -41,6 +41,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,6 +57,27 @@ async def add_security_headers(request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
+# Dynamic and fallback media serving with Supabase Storage re-hydration
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from app.services.media_storage import media_storage_service
+
+@app.get("/uploads/{filename}", tags=["Media"])
+async def get_uploaded_media(filename: str):
+    """
+    Serves uploaded complaint media with fallback re-hydration from Supabase Storage
+    to survive ephemeral container restarts.
+    """
+    safe_name = os.path.basename(filename)
+    if ".." in safe_name or "/" in safe_name or "\\" in safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    local_file = media_storage_service.ensure_local_copy(safe_name)
+    if local_file and os.path.isfile(local_file):
+        return FileResponse(local_file)
+
+    raise HTTPException(status_code=404, detail="Media file not found")
 
 # Ensure upload directory exists before static mounting
 os.makedirs(settings.MEDIA_UPLOAD_DIR, exist_ok=True)
@@ -84,6 +106,7 @@ from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.complaints import router as complaints_router
 from app.api.endpoints.ai import router as ai_router
 
+app.add_api_route("/health", health_check, methods=["GET"], tags=["Health & Diagnostics"])
 app.add_api_route("/api/health", health_check, methods=["GET"], tags=["Health & Diagnostics"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication & User Management"])
 app.include_router(complaints_router, prefix="/api/complaints", tags=["Complaints & Grievances"])

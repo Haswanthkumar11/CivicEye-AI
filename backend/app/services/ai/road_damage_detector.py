@@ -43,13 +43,31 @@ class RoadDamageDetector(IRoadDamageDetector):
     enforces lazy loading, single-instance caching, CPU fallback, and explicit memory reclamation.
     """
 
+    @staticmethod
+    def _resolve_path(target_path: str) -> str:
+        """
+        Dynamically resolves model weights path across various execution environments:
+        - When executed from project root
+        - When executed from backend/ subdirectory (common on Render)
+        """
+        if not target_path:
+            return target_path
+        if os.path.isfile(target_path):
+            return os.path.abspath(target_path)
+        # Check relative to parent directory (if cwd is backend/)
+        parent_candidate = os.path.abspath(os.path.join("..", target_path))
+        if os.path.isfile(parent_candidate):
+            return parent_candidate
+        return target_path
+
     def __init__(
         self,
         weights_path: Optional[str] = None,
         device: Optional[str] = None,
         confidence_threshold: Optional[float] = None,
     ):
-        self._weights_path = weights_path or getattr(settings, "YOLO_MODEL_PATH", "models/weights/road_damage_yolov8.onnx")
+        raw_path = weights_path or getattr(settings, "resolved_yolo_model_path", getattr(settings, "YOLO_MODEL_PATH", "models/weights/road_damage_yolov8.onnx"))
+        self._weights_path = self._resolve_path(raw_path)
         self._requested_device = (device or getattr(settings, "YOLO_DEVICE", "cpu")).lower()
         self._actual_device = "cpu"
         self._confidence_threshold = confidence_threshold or getattr(settings, "YOLO_CONFIDENCE_THRESHOLD", 0.35)
@@ -76,7 +94,9 @@ class RoadDamageDetector(IRoadDamageDetector):
         Automatically detects GPU availability and falls back to CPU if CUDA is unavailable.
         """
         if weights_path:
-            self._weights_path = weights_path
+            self._weights_path = self._resolve_path(weights_path)
+        else:
+            self._weights_path = self._resolve_path(self._weights_path)
         if device:
             self._requested_device = device.lower()
 
